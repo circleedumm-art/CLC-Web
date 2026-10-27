@@ -9,5 +9,5 @@ const firebaseConfig = {
   appId: "1:333062137880:web:e259cf43bb87c89c077b6d"
 };
 
-const ADMIN_EMAIL = "your-admin-gmail@gmail.com";  // the one Google account that is admin
+const ADMIN_EMAIL = "circle.edu.mm@gmail.com";  // the one Google account that is admin
 const ID_DOMAIN = "clc-portal.app";                // hidden domain that turns "S001" into an email login
