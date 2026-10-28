@@ -11,6 +11,7 @@
 }
 :root[lang=my]{ --font:"Noto Sans Myanmar",-apple-system,system-ui,sans-serif; --lh:1.85 }
 
+[hidden]{display:none!important}
 *{box-sizing:border-box;margin:0}
 html{scroll-behavior:smooth;scroll-padding-top:84px}
 body{background:var(--bg);color:var(--text);font:400 17px/var(--lh) var(--font);-webkit-font-smoothing:antialiased;
@@ -137,3 +138,8 @@ h3{font-size:20px;text-align:center}
 .empty{justify-content:center;color:var(--sub);text-align:center;padding:28px 16px!important}
 .sheet{max-height:92vh;overflow-y:auto}
 .facts b{font-family:ui-monospace,Menlo,monospace;user-select:all}
+.chk{display:flex;align-items:center;gap:12px;width:100%;cursor:pointer}
+.chk input{width:20px;height:20px;accent-color:var(--accent);flex:none}
+.chk b{display:block;font-weight:600}
+.tabs.five a{white-space:nowrap}
+@media(max-width:720px){.tabs.five a{font-size:12px;padding:8px 0}}
