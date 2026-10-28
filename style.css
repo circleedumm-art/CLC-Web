@@ -156,3 +156,7 @@ h3{font-size:20px;text-align:center}
   .cert{position:fixed;inset:24px;margin:0;border-width:10px;display:flex;flex-direction:column;justify-content:center}
   .cert h3{font-size:34px}.scrim{background:none;-webkit-backdrop-filter:none;backdrop-filter:none}
 }
+.back{display:inline-block;margin:0 0 12px 2px;color:var(--accent);font-size:15px}
+.seg.mini{flex-wrap:wrap;margin-left:auto}.seg.mini button{padding:4px 9px;font-size:13px}
+.go{cursor:pointer}.go:hover{background:var(--fill)}.go::after{content:"›";color:var(--sub);font-size:24px}
+.btn.small.wide{margin-top:10px}
