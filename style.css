@@ -117,3 +117,23 @@ h3{font-size:20px;text-align:center}
   padding:12px 18px;border-radius:14px;background:var(--card);box-shadow:0 8px 28px rgba(0,0,0,.25);font-size:15px;text-align:center}
 .toast[hidden]{display:none}
 .err{color:#FF3B30}
+
+/* ---------- Admin ---------- */
+.wrap.top{padding-top:calc(92px + env(safe-area-inset-top));max-width:860px}
+.head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}.head h2{margin:0}
+.search{width:100%;border:0;border-radius:12px;background:var(--fill);padding:10px 14px;margin-bottom:14px;outline:0}
+.tabs a[aria-current=true]{background:var(--fill);color:var(--text)}
+.item{flex-wrap:wrap}
+.item .grow{flex:1;min-width:200px}.item .grow b{display:block;font-weight:600}
+.item small{display:block;color:var(--sub);font-size:14px;line-height:1.4;overflow-wrap:anywhere}
+.acts{display:flex;gap:6px;flex-wrap:wrap}
+.acts .btn.small{padding:6px 12px;font-size:13px}
+.btn.danger{background:rgba(255,59,48,.14);color:#FF3B30}
+.pill{font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px;background:var(--fill);color:var(--sub);white-space:nowrap}
+.s-pending{background:rgba(255,149,0,.18);color:#FF9500}
+.s-approved,.s-active{background:rgba(52,199,89,.18);color:#34C759}
+.s-enrolled{background:rgba(0,122,255,.16);color:var(--accent)}
+.s-rejected,.s-inactive{background:rgba(255,59,48,.14);color:#FF3B30}
+.empty{justify-content:center;color:var(--sub);text-align:center;padding:28px 16px!important}
+.sheet{max-height:92vh;overflow-y:auto}
+.facts b{font-family:ui-monospace,Menlo,monospace;user-select:all}
