@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CLC – My portal</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#F2F2F7">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Myanmar:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="icon" href="logo.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body hidden>
+
+<header class="bar">
+  <a class="brand" href="index.html" aria-label="Circle Learning Centre">
+    <img class="logo-img" src="logo.png" alt="" width="32" height="32" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'logo'}))"><span class="brand-name">CLC</span>
+  </a>
+  <nav class="tabs five" aria-label="Portal">
+    <a href="#classes" data-i18n="classes"></a>
+    <a href="#schedule" data-i18n="schedule"></a>
+    <a href="#grades" data-i18n="grades"></a>
+    <a href="#certs" data-i18n="certs"></a>
+    <a href="#profile" data-i18n="profile"></a>
+  </nav>
+  <div class="controls">
+    <div class="seg" role="group" aria-label="Language">
+      <button data-lang="en" aria-pressed="true">EN</button>
+      <button data-lang="my" aria-pressed="false">မြန်မာ</button>
+    </div>
+    <button class="icon-btn" id="themeBtn" aria-label="Toggle dark mode"></button>
+    <a class="btn small ghost hide-m" href="index.html" data-i18n="site"></a>
+    <button class="btn small" id="logout" data-i18n="logout"></button>
+  </div>
+</header>
+
+<main class="wrap top">
+  <h2 id="title"></h2>
+  <div id="view"></div>
+</main>
+
+<div class="scrim" id="modal" hidden></div>
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script src="student.js"></script>
+</body>
+</html>
