@@ -2,12 +2,30 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // ---- Helpers ----------------------------------------------------------
     function isAdmin() {
       return request.auth != null
-        && request.auth.token.email == 'circle.edu.mm@gmail.com'   
+        && request.auth.token.email == 'your-admin-gmail@gmail.com'   // <- same email as ADMIN_EMAIL
         && request.auth.token.email_verified == true;
     }
+    function signedIn() { return request.auth != null; }
+    // Inactive accounts cannot read anything except their own profile document.
+    function active() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('status', 'active') != 'inactive';
+    }
+    function inClass(classId) {
+      return signedIn() && active()
+        && exists(/databases/$(database)/documents/memberships/$(classId + '_' + request.auth.uid));
+    }
+    function teaches(classId) {
+      return signedIn() && active()
+        && get(/databases/$(database)/documents/classes/$(classId)).data.teacherId == request.auth.uid;
+    }
+    function timeFieldsOnly() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['day', 'time', 'venue_en', 'venue_my', 'updatedAt']);
+    }
 
+    // ---- Guests -----------------------------------------------------------
     // Guests may only ADD a pending enrolment. They can never read, change or delete anything.
     match /enrolments/{id} {
       allow create: if request.resource.data.keys().hasOnly(['name','email','course','note','status','createdAt'])
@@ -19,41 +37,67 @@ service cloud.firestore {
       allow read, update, delete: if isAdmin();
     }
 
-    function signedIn() { return request.auth != null; }
-    // Inactive accounts cannot read anything except their own profile document.
-    function active() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('status', 'active') != 'inactive';
-    }
-    function inClass(classId) {
-      return signedIn() && active()
-        && exists(/databases/$(database)/documents/memberships/$(classId + '_' + request.auth.uid));
-    }
-
-    // A person can read their own profile. Students may change only these profile fields.
+    // ---- Students and teachers -------------------------------------------
+    // Everyone can read their own profile and change only these fields.
     match /users/{uid} {
       allow read: if signedIn() && request.auth.uid == uid;
       allow update: if signedIn() && request.auth.uid == uid && active()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['phone', 'location', 'about', 'updatedAt']);
     }
-    // Students see only their own class memberships, grades, and classes/exams they belong to.
+
+    // Students: their own memberships. Teachers: memberships of classes they teach.
     match /memberships/{id} {
-      allow read: if signedIn() && active() && resource.data.studentId == request.auth.uid;
+      allow read: if (signedIn() && active() && resource.data.studentId == request.auth.uid)
+                  || teaches(resource.data.classId);
     }
+
+    // Students can open classes they belong to. Teachers can list their own classes
+    // and change only the day, time and place.
     match /classes/{id} {
-      allow get: if inClass(id);
+      allow get: if inClass(id) || (signedIn() && active() && resource.data.teacherId == request.auth.uid);
+      allow list: if signedIn() && active() && resource.data.teacherId == request.auth.uid;
+      allow update: if signedIn() && active() && resource.data.teacherId == request.auth.uid && timeFieldsOnly();
     }
+
     match /exams/{id} {
-      allow read: if inClass(resource.data.classId);
+      allow read: if inClass(resource.data.classId) || teaches(resource.data.classId);
+      allow create: if teaches(request.resource.data.classId)
+        && request.resource.data.keys().hasOnly(['classId','title','date','time','venue'])
+        && request.resource.data.title is string && request.resource.data.title.size() <= 120;
+      allow delete: if teaches(resource.data.classId);
     }
+
     match /grades/{id} {
-      allow read: if signedIn() && active() && resource.data.studentId == request.auth.uid;
+      allow read: if (signedIn() && active() && resource.data.studentId == request.auth.uid)
+                  || teaches(resource.data.classId);
+      allow create: if teaches(request.resource.data.classId)
+        && exists(/databases/$(database)/documents/memberships/$(request.resource.data.classId + '_' + request.resource.data.studentId))
+        && request.resource.data.title is string && request.resource.data.title.size() <= 120
+        && request.resource.data.score is number && request.resource.data.max is number
+        && request.resource.data.max > 0 && request.resource.data.score >= 0
+        && request.resource.data.score <= request.resource.data.max;
+      allow delete: if teaches(resource.data.classId);
     }
 
-    // Public website content: anyone can read, only the admin can change (admin rule below).
-    match /programs/{id} { allow read: if true; }
-    match /publicSchedule/{id} { allow read: if true; }
+    // Attendance is written and read by the class teacher only (and the admin).
+    match /attendance/{id} {
+      allow read: if teaches(resource.data.classId);
+      allow create, update: if teaches(request.resource.data.classId)
+        && request.resource.data.keys().hasOnly(['classId','date','records','teacherId','updatedAt'])
+        && request.resource.data.teacherId == request.auth.uid
+        && request.resource.data.date is string && request.resource.data.date.size() == 10
+        && request.resource.data.records is map
+        && id == request.resource.data.classId + '_' + request.resource.data.date;
+    }
 
-    // Everything else: admin only (students/teachers get their own rules in later steps).
+    // ---- Public website content ------------------------------------------
+    match /programs/{id} { allow read: if true; }
+    match /publicSchedule/{id} {
+      allow read: if true;
+      allow update: if teaches(id) && timeFieldsOnly();   // keeps the public timetable in step with a teacher's time change
+    }
+
+    // ---- Everything else: admin only -------------------------------------
     match /{document=**} {
       allow read, write: if isAdmin();
     }
