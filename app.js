@@ -188,7 +188,7 @@ if (auth) auth.onAuthStateChanged(async user => {
   const admin = !!user && user.email === ADMIN_EMAIL;
   let portal = null;
   if (user && !admin) {
-    try { const d = await db.collection("users").doc(user.uid).get(); if (d.exists && d.data().role === "student") portal = "student.html"; } catch (e) { console.warn(e); }
+    try { const d = await db.collection("users").doc(user.uid).get(); if (d.exists && d.data().role === "student") portal = "student.html"; else if (d.exists && d.data().role === "teacher") portal = "teacher.html"; } catch (e) { console.warn(e); }
   }
   $("#loginBtn").dataset.i18n = admin ? "dashboard" : portal ? "portal" : user ? "logout" : "login";
   $("#loginBtn").onclick = admin ? () => location.href = "admin.html" : portal ? () => location.href = portal : user ? () => auth.signOut() : openSheet;
