@@ -188,12 +188,13 @@ $("#googleBtn").onclick = async () => {
   if (!auth) return loginErr("Firebase is not set up yet.");
   try {
     const { user } = await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
-    if (user.email !== ADMIN_EMAIL) { await auth.signOut(); loginErr(T[lang].l_notadmin); }
+    if (user.email !== ADMIN_EMAIL) { await auth.signOut(); loginErr(T[lang].l_notadmin); } else location.href = "admin.html";
   } catch (err) { console.error(err); }
 };
 if (auth) auth.onAuthStateChanged(user => {
   $("#loginBtn").dataset.i18n = user ? "logout" : "login";
   $("#loginBtn").onclick = user ? () => auth.signOut() : openSheet;
+  $("#adminLink").hidden = !(user && user.email === ADMIN_EMAIL);
   if (user) { closeSheet(); toast(T[lang].l_in); }
   renderLang();
 });
