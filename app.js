@@ -1,7 +1,7 @@
 /* =========================================================
    CLC website – Step 1 (public site)
-   Edit the DATA block below to change programs and schedule.
-   Step 2 will load this same data from Firebase instead.
+   Programs and the schedule now come from the admin dashboard.
+   The starter programs live in defaults.js.
    ========================================================= */
 
 const LINKS = {
@@ -11,30 +11,10 @@ const LINKS = {
 };
 
 const DATA = {
-  programs: [
-    { icon: "💬", en: "Circle Conversation Club", my: "Circle စကားပြောကလပ်",
-      en_d: "Practise speaking English every week in a friendly small group.",
-      my_d: "သူငယ်ချင်းဆန်ဆန် အဖွဲ့ငယ်လေးနှင့် အင်္ဂလိပ်စကားပြောကို အပတ်စဉ် လေ့ကျင့်ပါ။" },
-    { icon: "🔑", en: "Five Keys to Success Webinar", my: "အောင်မြင်ရေးသော့ချက် ငါးခု ဝက်ဘ်ဘီနာ",
-      en_d: "A youth empowerment series on skills for study, work and life.",
-      my_d: "လေ့လာရေး၊ အလုပ်နှင့် ဘဝအတွက် လူငယ်စွမ်းဆောင်ရည် မြှင့်တင်ရေး ဆောင်ရွက်မှု။" },
-    { icon: "🌱", en: "Basic English", my: "အခြေခံ အင်္ဂလိပ်စာ",
-      en_d: "Start from the beginning with simple words, sentences and speaking.",
-      my_d: "ရိုးရှင်းသော စကားလုံးများ၊ ဝါကျများနှင့် စကားပြောကို အစမှ စတင်သင်ယူပါ။" },
-    { icon: "🎒", en: "Young Learners English", my: "ကလေးငယ်များ အင်္ဂလိပ်စာ",
-      en_d: "Fun, gentle English classes for younger students.",
-      my_d: "ကလေးငယ်များအတွက် ပျော်ရွှင်စရာ အင်္ဂလိပ်စာ အတန်းများ။" },
-    { icon: "🎓", en: "Adult English Course", my: "လူကြီးများ အင်္ဂလိပ်စာ သင်တန်း",
-      en_d: "Build confidence in English for work, study and daily life.",
-      my_d: "အလုပ်၊ ပညာရေးနှင့် နေ့စဉ်ဘဝအတွက် အင်္ဂလိပ်စာ ယုံကြည်မှု တည်ဆောက်ပါ။" }
-  ],
-  // Sample timetable – replace with your real classes. day: 0=Mon … 6=Sun
-  schedule: [
-    { day: 1, time: "7:00 – 8:00 PM", course: 0, en_n: "Online via Zoom", my_n: "Zoom ဖြင့် အွန်လိုင်း" },
-    { day: 3, time: "6:30 – 7:30 PM", course: 2, en_n: "Online via Zoom", my_n: "Zoom ဖြင့် အွန်လိုင်း" },
-    { day: 5, time: "9:00 – 10:30 AM", course: 4, en_n: "Online via Zoom", my_n: "Zoom ဖြင့် အွန်လိုင်း" }
-  ]
+  programs: DEFAULT_PROGRAMS.slice(),   // replaced by your Programs from the database once you add them
+  schedule: []                          // filled from classes you mark "Show on website"
 };
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
 const DAYS = {
   en: ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"],
@@ -51,7 +31,7 @@ const T = {
     about_p:"Circle Learning Centre began in 2021 as a Facebook page. Since then, volunteer teachers have helped youths and adults who struggle with English to speak with confidence.",
     f1_k:"Started", f1_v:"2021", f2_k:"Teachers", f2_v:"Volunteers", f3_k:"Who we serve", f3_v:"Myanmar youths and adults",
     prog_h:"Programs", sched_h:"Class schedule",
-    sched_note:"Sample schedule. Times may change – check before you join.",
+    sched_note:"Times may change – please check before you join.", sched_none:"The schedule will be posted soon.", dashboard:"Dashboard",
     enrol_h:"Enrol in a class",
     enrol_p:"Send your details. A teacher or admin will review them and email you your login ID and password once approved.",
     f_name:"Full name", f_contact:"Email address", f_course:"Program", f_note:"Note", f_submit:"Send enrolment",
@@ -72,7 +52,7 @@ const T = {
     about_p:"Circle Learning Centre ကို ၂၀၂၁ ခုနှစ်တွင် Facebook စာမျက်နှာအဖြစ် စတင်ခဲ့ပါသည်။ စေတနာ့ဝန်ထမ်း ဆရာများက အင်္ဂလိပ်စာ အခက်အခဲရှိသော လူငယ်နှင့် လူကြီးများ ယုံကြည်မှုရှိရှိ စကားပြောနိုင်လာစေရန် ကူညီခဲ့ကြသည်။",
     f1_k:"စတင်ခဲ့သည်", f1_v:"၂၀၂၁", f2_k:"ဆရာများ", f2_v:"စေတနာ့ဝန်ထမ်းများ", f3_k:"ဝန်ဆောင်မှုပေးသူများ", f3_v:"မြန်မာလူငယ်နှင့် လူကြီးများ",
     prog_h:"သင်တန်းများ", sched_h:"အတန်း အချိန်ဇယား",
-    sched_note:"နမူနာ အချိန်ဇယား ဖြစ်ပါသည်။ မတက်ခင် ပြန်လည်စစ်ဆေးပါ။",
+    sched_note:"အချိန်များ ပြောင်းလဲနိုင်ပါသည်။ မတက်ခင် ပြန်လည်စစ်ဆေးပါ။", sched_none:"အချိန်ဇယားကို မကြာမီ ကြေညာပါမည်။", dashboard:"Dashboard",
     enrol_h:"သင်တန်း စာရင်းသွင်းရန်",
     enrol_p:"သင့်အချက်အလက်ကို ပေးပို့ပါ။ ဆရာ သို့မဟုတ် အက်ဒမင်က စစ်ဆေးပြီး အတည်ပြုပြီးလျှင် ID နှင့် စကားဝှက်ကို အီးမေးလ်ဖြင့် ပေးပို့ပါမည်။",
     f_name:"အမည်အပြည့်အစုံ", f_contact:"အီးမေးလ်", f_course:"သင်တန်း", f_note:"မှတ်ချက်", f_submit:"လျှောက်ထားမည်",
@@ -102,19 +82,20 @@ function renderLang() {
 
   $("#programList").innerHTML = DATA.programs.map((p, i) => `
     <li class="prog" tabindex="0" data-course="${i}">
-      <span class="dot">${p.icon}</span>
-      <span class="t"><b>${p[lang]}</b><small>${p[lang + "_d"]}</small></span>
+      <span class="dot">${esc(p.icon)}</span>
+      <span class="t"><b>${esc(p[lang])}</b><small>${esc(p[lang + "_d"])}</small></span>
     </li>`).join("");
 
-  $("#scheduleList").innerHTML = DATA.schedule.map(s => `
-    <li class="day">
+  $("#scheduleList").innerHTML = DATA.schedule.length ? DATA.schedule.map(s => {
+    const p = DATA.programs.find(x => x.id === s.programId);
+    return `<li class="day">
       <span class="d">${DAYS[lang][s.day]}</span>
-      <span class="c">${DATA.programs[s.course][lang]}<small>${s[lang + "_n"]}</small></span>
-      <span class="tm">${s.time}</span>
-    </li>`).join("");
+      <span class="c">${esc(p ? p[lang] : "")}${s.label ? " · " + esc(s.label) : ""}<small>${esc(s["venue_" + lang])}</small></span>
+      <span class="tm">${esc(s.time)}</span>
+    </li>`; }).join("") : `<li class="empty">${T[lang].sched_none}</li>`;
 
   const sel = $("#courseSelect"), keep = sel.value;
-  sel.innerHTML = DATA.programs.map((p, i) => `<option value="${i}">${p[lang]}</option>`).join("");
+  sel.innerHTML = DATA.programs.map((p, i) => `<option value="${i}">${esc(p[lang])}</option>`).join("");
   if (keep) sel.value = keep;
 }
 $$("[data-lang]").forEach(b => b.onclick = () => { lang = b.dataset.lang; store.set("clc_lang", lang); renderLang(); });
@@ -172,6 +153,17 @@ const live = typeof firebase !== "undefined" && typeof firebaseConfig !== "undef
 let auth = null, db = null;
 if (live) { firebase.initializeApp(firebaseConfig); auth = firebase.auth(); db = firebase.firestore(); }
 
+async function loadContent() {
+  if (!db) return;
+  try {
+    const [pr, sc] = await Promise.all([db.collection("programs").orderBy("order").get(), db.collection("publicSchedule").get()]);
+    if (!pr.empty) DATA.programs = pr.docs.map(d => ({ id: d.id, ...d.data() }));
+    DATA.schedule = sc.docs.map(d => d.data()).sort((a, b) => a.day - b.day || String(a.time).localeCompare(String(b.time)));
+    renderLang();
+  } catch (e) { console.warn("Could not load site content:", e); }
+}
+loadContent();
+
 function toast(msg) { const t = $("#toast"); t.textContent = msg; t.hidden = false; clearTimeout(toast.id); toast.id = setTimeout(() => t.hidden = true, 4000); }
 function loginErr(msg) { const p = $("#loginErr"); p.textContent = msg || ""; p.hidden = !msg; }
 
@@ -192,12 +184,14 @@ $("#googleBtn").onclick = async () => {
   } catch (err) { console.error(err); }
 };
 if (auth) auth.onAuthStateChanged(user => {
-  $("#loginBtn").dataset.i18n = user ? "logout" : "login";
-  $("#loginBtn").onclick = user ? () => auth.signOut() : openSheet;
-  $("#adminLink").hidden = !(user && user.email === ADMIN_EMAIL);
-  if (user) { closeSheet(); toast(T[lang].l_in); }
+  const admin = !!user && user.email === ADMIN_EMAIL;
+  $("#loginBtn").dataset.i18n = admin ? "dashboard" : user ? "logout" : "login";
+  $("#loginBtn").onclick = admin ? () => location.href = "admin.html" : user ? () => auth.signOut() : openSheet;
+  $("#logoutLink").hidden = !admin;
+  if (user) { closeSheet(); if (!admin) toast(T[lang].l_in); }
   renderLang();
 });
+$("#logoutLink").onclick = e => { e.preventDefault(); if (auth) auth.signOut(); };
 
 /* ---------- Footer ---------- */
 [["fb", "fb"], ["yt", "yt"], ["tt", "tt"]].forEach(([id, k]) => {
