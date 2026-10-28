@@ -143,3 +143,16 @@ h3{font-size:20px;text-align:center}
 .chk b{display:block;font-weight:600}
 .tabs.five a{white-space:nowrap}
 @media(max-width:720px){.tabs.five a{font-size:12px;padding:8px 0}}
+.sub{font-size:13px;color:var(--sub);margin:22px 0 6px 4px;font-weight:600}
+.info li{justify-content:space-between}.info span{color:var(--sub)}.info b{font-weight:500;text-align:right;overflow-wrap:anywhere}
+.item .grow+b{white-space:nowrap}
+.cert{background:#fff;color:#1c1c1e;border:6px double #007AFF;border-radius:12px;padding:28px 20px;text-align:center;margin:14px 0}
+.cert h4{font-size:14px;letter-spacing:.14em;text-transform:uppercase;margin:10px 0 18px;color:#007AFF}
+.cert h3{font-size:24px;margin:6px 0 10px;letter-spacing:-.01em}.cert p{margin:4px 0;color:#48484A}.cert .meta{font-size:13px;margin-top:16px;color:#6C6C70}
+:root[lang=my] .cert h4{letter-spacing:0;text-transform:none}
+@media(max-width:720px){.hide-m{display:none!important}}
+@media print{
+  body *{visibility:hidden}.cert,.cert *{visibility:visible}
+  .cert{position:fixed;inset:24px;margin:0;border-width:10px;display:flex;flex-direction:column;justify-content:center}
+  .cert h3{font-size:34px}.scrim{background:none;-webkit-backdrop-filter:none;backdrop-filter:none}
+}
