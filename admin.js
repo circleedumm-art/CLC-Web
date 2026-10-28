@@ -92,7 +92,7 @@ function render() {
           <small>${DAYS[c.day] || ""} ${esc(c.time)} · ${esc(c.teacherName || "No teacher yet")}</small>
           <small>${n} student${n === 1 ? "" : "s"}${c.public ? " · shown on website" : " · not on website"}</small></div>
           <span class="pill s-${st === "completed" ? "enrolled" : "active"}">${esc(st)}</span>
-          <div class="acts">${btn("members", "Students")}${btn("editClass", "Edit")}${btn("delClass", "Delete", "danger")}</div></li>`;
+          <div class="acts">${btn("members", "Students")}${btn("records", "Exams & grades")}${btn("editClass", "Edit")}${btn("delClass", "Delete", "danger")}</div></li>`;
       }).join("");
   } else {
     empty = `No programs yet. <br><br><button class="btn small" data-act="seed">Load starter programs</button>`;
@@ -121,6 +121,7 @@ $("#list").addEventListener("click", async e => {
     if (act === "delProg" && confirm("Delete this program? Existing classes keep working but will show “Program”.")) await db.collection("programs").doc(id).delete();
     if (act === "editClass") openClass(classes.find(x => x.id === id));
     if (act === "members") openMembers(classes.find(x => x.id === id));
+    if (act === "records") openRecords(classes.find(x => x.id === id));
     if (act === "delClass") await deleteClass(classes.find(x => x.id === id));
   } catch (err) { console.error(err); toast("Something went wrong. Try again."); }
 });
@@ -186,9 +187,9 @@ function showDone({ role, loginId, name, email, password }) {
 
 /* ---------- Generic sheet for programs / classes / members ---------- */
 const modal = $("#modal");
-function sheet(title, body) {
+function sheet(title, body, closeLabel = "Cancel") {
   modal.innerHTML = `<div class="sheet" role="dialog" aria-modal="true"><div class="grab"></div><h3>${esc(title)}</h3>${body}
-    <p class="note center err" id="mErr" hidden></p><button class="link" data-mclose>Cancel</button></div>`;
+    <p class="note center err" id="mErr" hidden></p><button class="link" data-mclose>${closeLabel}</button></div>`;
   modal.hidden = false;
   $("[data-mclose]", modal).onclick = closeModal;
 }
@@ -258,6 +259,8 @@ async function deleteClass(c) {
   const b = db.batch();
   b.delete(db.collection("classes").doc(c.id)); b.delete(db.collection("publicSchedule").doc(c.id));
   members.filter(m => m.classId === c.id).forEach(m => b.delete(db.collection("memberships").doc(m.id)));
+  const [ex, gr] = await Promise.all([db.collection("exams").where("classId", "==", c.id).get(), db.collection("grades").where("classId", "==", c.id).get()]);
+  [...ex.docs, ...gr.docs].forEach(d => b.delete(d.ref));
   await b.commit(); toast("Class deleted");
 }
 
@@ -275,5 +278,71 @@ function openMembers(c) {
       b.set(db.collection("memberships").doc(`${c.id}_${uid}`), { classId: c.id, studentId: uid, studentName: u.name, loginId: u.loginId, status: "enrolled", createdAt: firebase.firestore.FieldValue.serverTimestamp() }); } });
     cur.forEach(uid => { if (!now.has(uid)) b.delete(db.collection("memberships").doc(`${c.id}_${uid}`)); });
     try { await b.commit(); closeModal(); toast("Class students updated"); } catch (e) { console.error(e); mErr("Could not save. Try again."); }
+  };
+}
+
+/* ---------- Exams, grades and completion for one class ---------- */
+async function openRecords(c) {
+  const keep = $(".sheet", modal) ? $(".sheet", modal).scrollTop : 0;
+  const [ex, gr] = await Promise.all([db.collection("exams").where("classId", "==", c.id).get(), db.collection("grades").where("classId", "==", c.id).get()]);
+  const exams = ex.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  const grades = gr.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.studentName || "").localeCompare(b.studentName || ""));
+  const mem = members.filter(m => m.classId === c.id).sort((a, b) => (a.loginId || "").localeCompare(b.loginId || ""));
+  const rowBtn = (a, id, label, cls = "danger") => `<button class="btn small ${cls}" data-r="${a}" data-id="${id}">${label}</button>`;
+  const none = m => `<li class="empty"><div>${m}</div></li>`;
+
+  sheet(`Records · ${progName(c.programId)}`, `
+    <p class="sub">Exams</p>
+    <ul class="group">${exams.map(e => `<li class="item"><div class="grow"><b>${esc(e.title)}</b><small>${esc(e.date)} ${esc(e.time)} ${e.venue ? "· " + esc(e.venue) : ""}</small></div>${rowBtn("delExam", e.id, "Delete")}</li>`).join("") || none("No exams yet.")}</ul>
+    <form id="exForm" class="group form" style="margin-top:10px" novalidate>
+      <label><span>Title</span><input name="title" placeholder="Midterm exam"></label>
+      <label><span>Date</span><input name="date" type="date"></label>
+      <label><span>Time</span><input name="time" placeholder="7:00 PM"></label>
+      <label><span>Place</span><input name="venue" placeholder="Online"></label></form>
+    <button class="btn small wide" data-r="addExam">Add exam</button>
+
+    <p class="sub">Students · completion</p>
+    <ul class="group">${mem.map(m => `<li class="item"><div class="grow"><b>${esc(m.studentName)}</b><small>ID: ${esc(m.loginId)}${m.certNo ? " · " + esc(m.certNo) : ""}</small></div>
+      <span class="pill s-${m.status === "completed" ? "enrolled" : "active"}">${esc(m.status || "enrolled")}</span>
+      ${m.status === "completed" ? rowBtn("reopen", m.id, "Reopen", "ghost") : rowBtn("complete", m.id, "Mark completed", "")}</li>`).join("") || none("No students in this class yet.")}</ul>
+
+    <p class="sub">Grades</p>
+    <ul class="group">${grades.map(g => `<li class="item"><div class="grow"><b>${esc(g.studentName)} · ${esc(g.title)}</b><small>${esc(g.score)} / ${esc(g.max)}${g.comment ? " · " + esc(g.comment) : ""}</small></div>${rowBtn("delGrade", g.id, "Delete")}</li>`).join("") || none("No grades yet.")}</ul>
+    ${mem.length ? `<form id="grForm" class="group form" style="margin-top:10px" novalidate>
+      <label><span>Student</span><select name="student">${opts(mem.map(m => [m.studentId, `${m.studentName} (${m.loginId})`]), "")}</select></label>
+      <label><span>Title</span><input name="title" placeholder="Midterm exam"></label>
+      <label><span>Score</span><input name="score" type="number" step="any" inputmode="decimal"></label>
+      <label><span>Out of</span><input name="max" type="number" step="any" value="100"></label>
+      <label><span>Comment</span><input name="comment"></label></form>
+    <button class="btn small wide" data-r="addGrade">Add grade</button>` : ""}`, "Close");
+  const root = $(".sheet", modal); root.scrollTop = keep;
+
+  root.onclick = async e => {
+    const b = e.target.closest("[data-r]"); if (!b) return;
+    const a = b.dataset.r, id = b.dataset.id, FV = firebase.firestore.FieldValue;
+    try {
+      if (a === "addExam") {
+        const f = $("#exForm").elements;
+        if (!f.title.value.trim() || !f.date.value) return mErr("Exam needs a title and a date.");
+        await db.collection("exams").add({ classId: c.id, title: f.title.value.trim(), date: f.date.value, time: f.time.value.trim(), venue: f.venue.value.trim() });
+      }
+      if (a === "delExam") await db.collection("exams").doc(id).delete();
+      if (a === "addGrade") {
+        const f = $("#grForm").elements, m = mem.find(x => x.studentId === f.student.value), score = parseFloat(f.score.value), max = parseFloat(f.max.value);
+        if (!f.title.value.trim() || isNaN(score) || isNaN(max) || max <= 0 || score < 0 || score > max) return mErr("Enter a title and a score between 0 and the maximum.");
+        await db.collection("grades").add({ classId: c.id, studentId: m.studentId, studentName: m.studentName, title: f.title.value.trim(), score, max, comment: f.comment.value.trim(), createdAt: FV.serverTimestamp() });
+      }
+      if (a === "delGrade") await db.collection("grades").doc(id).delete();
+      if (a === "complete") {
+        const certNo = `CLC-${new Date().getFullYear()}-${Math.floor(10000 + Math.random() * 90000)}`;
+        await db.collection("memberships").doc(id).update({ status: "completed", completedAt: FV.serverTimestamp(), certNo });
+        Object.assign(members.find(m => m.id === id), { status: "completed", certNo });
+      }
+      if (a === "reopen") {
+        await db.collection("memberships").doc(id).update({ status: "enrolled", completedAt: FV.delete(), certNo: FV.delete() });
+        Object.assign(members.find(m => m.id === id), { status: "enrolled", certNo: "" });
+      }
+      openRecords(c);
+    } catch (err) { console.error(err); mErr("Could not save. Try again."); }
   };
 }
