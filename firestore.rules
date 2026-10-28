@@ -19,6 +19,36 @@ service cloud.firestore {
       allow read, update, delete: if isAdmin();
     }
 
+    function signedIn() { return request.auth != null; }
+    // Inactive accounts cannot read anything except their own profile document.
+    function active() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('status', 'active') != 'inactive';
+    }
+    function inClass(classId) {
+      return signedIn() && active()
+        && exists(/databases/$(database)/documents/memberships/$(classId + '_' + request.auth.uid));
+    }
+
+    // A person can read their own profile. Students may change only these profile fields.
+    match /users/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow update: if signedIn() && request.auth.uid == uid && active()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['phone', 'location', 'about', 'updatedAt']);
+    }
+    // Students see only their own class memberships, grades, and classes/exams they belong to.
+    match /memberships/{id} {
+      allow read: if signedIn() && active() && resource.data.studentId == request.auth.uid;
+    }
+    match /classes/{id} {
+      allow get: if inClass(id);
+    }
+    match /exams/{id} {
+      allow read: if inClass(resource.data.classId);
+    }
+    match /grades/{id} {
+      allow read: if signedIn() && active() && resource.data.studentId == request.auth.uid;
+    }
+
     // Public website content: anyone can read, only the admin can change (admin rule below).
     match /programs/{id} { allow read: if true; }
     match /publicSchedule/{id} { allow read: if true; }
