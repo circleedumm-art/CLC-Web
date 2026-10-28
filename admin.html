@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CLC Admin</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#F2F2F7">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="icon" href="logo.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body hidden>
+
+<header class="bar">
+  <a class="brand" href="index.html" aria-label="Back to website">
+    <img class="logo-img" src="logo.png" alt="" width="32" height="32" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'logo'}))"><span class="brand-name">Admin</span>
+  </a>
+  <nav class="tabs" aria-label="Admin">
+    <a href="#enrolments">Enrolments</a>
+    <a href="#students">Students</a>
+    <a href="#teachers">Teachers</a>
+  </nav>
+  <div class="controls">
+    <button class="icon-btn" id="themeBtn" aria-label="Toggle dark mode"></button>
+    <a class="btn small ghost" href="index.html">Site</a>
+    <button class="btn small" id="logout">Log out</button>
+  </div>
+</header>
+
+<main class="wrap top">
+  <div class="head"><h2 id="title"></h2><button class="btn small" id="addBtn" hidden></button></div>
+  <input class="search" id="q" type="search" placeholder="Search" aria-label="Search">
+  <ul class="group" id="list"></ul>
+</main>
+
+<!-- Create account sheet -->
+<div class="scrim" id="cScrim" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="cTitle">
+    <div class="grab"></div>
+    <h3 id="cTitle">New account</h3>
+    <form id="cForm" class="group form" style="margin-top:14px" novalidate>
+      <label><span>Role</span><select name="role"><option value="student">Student</option><option value="teacher">Teacher</option></select></label>
+      <label><span>Login ID</span><input name="loginId" autocapitalize="none" autocomplete="off" spellcheck="false"></label>
+      <label><span>Full name</span><input name="name" autocomplete="off"></label>
+      <label><span>Email</span><input name="email" type="email" autocomplete="off"></label>
+      <label><span>Password</span><input name="password" autocomplete="off" spellcheck="false"></label>
+    </form>
+    <button class="link" id="genPw" type="button">Generate password</button>
+    <button class="btn wide" id="cSave">Create account</button>
+    <p class="note center err" id="cErr" hidden></p>
+    <button class="link" data-close>Cancel</button>
+  </div>
+</div>
+
+<!-- Done sheet -->
+<div class="scrim" id="dScrim" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="dTitle">
+    <div class="grab"></div>
+    <h3 id="dTitle">Account created</h3>
+    <ul class="group facts" style="margin-top:14px">
+      <li><span>Login ID</span><b id="dId"></b></li>
+      <li><span>Password</span><b id="dPw"></b></li>
+    </ul>
+    <p class="note center">Passwords are not stored anywhere. Send these details now.</p>
+    <a class="btn wide" id="dMail" href="#">Email details</a>
+    <button class="btn ghost wide" id="dCopy">Copy message</button>
+    <button class="link" data-close>Done</button>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script src="admin.js"></script>
+</body>
+</html>
