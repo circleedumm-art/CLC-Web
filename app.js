@@ -31,7 +31,7 @@ const T = {
     about_p:"Circle Learning Centre began in 2021 as a Facebook page. Since then, volunteer teachers have helped youths and adults who struggle with English to speak with confidence.",
     f1_k:"Started", f1_v:"2021", f2_k:"Teachers", f2_v:"Volunteers", f3_k:"Who we serve", f3_v:"Myanmar youths and adults",
     prog_h:"Programs", sched_h:"Class schedule",
-    sched_note:"Times may change – please check before you join.", sched_none:"The schedule will be posted soon.", dashboard:"Dashboard",
+    sched_note:"Times may change – please check before you join.", sched_none:"The schedule will be posted soon.", dashboard:"Dashboard", portal:"My classes",
     enrol_h:"Enrol in a class",
     enrol_p:"Send your details. A teacher or admin will review them and email you your login ID and password once approved.",
     f_name:"Full name", f_contact:"Email address", f_course:"Program", f_note:"Note", f_submit:"Send enrolment",
@@ -52,7 +52,7 @@ const T = {
     about_p:"Circle Learning Centre ကို ၂၀၂၁ ခုနှစ်တွင် Facebook စာမျက်နှာအဖြစ် စတင်ခဲ့ပါသည်။ စေတနာ့ဝန်ထမ်း ဆရာများက အင်္ဂလိပ်စာ အခက်အခဲရှိသော လူငယ်နှင့် လူကြီးများ ယုံကြည်မှုရှိရှိ စကားပြောနိုင်လာစေရန် ကူညီခဲ့ကြသည်။",
     f1_k:"စတင်ခဲ့သည်", f1_v:"၂၀၂၁", f2_k:"ဆရာများ", f2_v:"စေတနာ့ဝန်ထမ်းများ", f3_k:"ဝန်ဆောင်မှုပေးသူများ", f3_v:"မြန်မာလူငယ်နှင့် လူကြီးများ",
     prog_h:"သင်တန်းများ", sched_h:"အတန်း အချိန်ဇယား",
-    sched_note:"အချိန်များ ပြောင်းလဲနိုင်ပါသည်။ မတက်ခင် ပြန်လည်စစ်ဆေးပါ။", sched_none:"အချိန်ဇယားကို မကြာမီ ကြေညာပါမည်။", dashboard:"Dashboard",
+    sched_note:"အချိန်များ ပြောင်းလဲနိုင်ပါသည်။ မတက်ခင် ပြန်လည်စစ်ဆေးပါ။", sched_none:"အချိန်ဇယားကို မကြာမီ ကြေညာပါမည်။", dashboard:"Dashboard", portal:"ကျွန်ုပ်၏ အတန်းများ",
     enrol_h:"သင်တန်း စာရင်းသွင်းရန်",
     enrol_p:"သင့်အချက်အလက်ကို ပေးပို့ပါ။ ဆရာ သို့မဟုတ် အက်ဒမင်က စစ်ဆေးပြီး အတည်ပြုပြီးလျှင် ID နှင့် စကားဝှက်ကို အီးမေးလ်ဖြင့် ပေးပို့ပါမည်။",
     f_name:"အမည်အပြည့်အစုံ", f_contact:"အီးမေးလ်", f_course:"သင်တန်း", f_note:"မှတ်ချက်", f_submit:"လျှောက်ထားမည်",
@@ -167,13 +167,14 @@ loadContent();
 function toast(msg) { const t = $("#toast"); t.textContent = msg; t.hidden = false; clearTimeout(toast.id); toast.id = setTimeout(() => t.hidden = true, 4000); }
 function loginErr(msg) { const p = $("#loginErr"); p.textContent = msg || ""; p.hidden = !msg; }
 
+let goPortal = false;
 $("#signIn").onclick = async () => {
   loginErr();
   if (!auth) return loginErr("Firebase is not set up yet.");
   const id = $("#loginForm").elements.id.value.trim().toLowerCase(), pw = $("#loginForm").elements.pw.value;
   if (!id || !pw) return;
-  try { await auth.signInWithEmailAndPassword(`${id}@${ID_DOMAIN}`, pw); }
-  catch (err) { loginErr(T[lang].l_bad); }
+  try { goPortal = true; await auth.signInWithEmailAndPassword(`${id}@${ID_DOMAIN}`, pw); }
+  catch (err) { goPortal = false; loginErr(T[lang].l_bad); }
 };
 $("#googleBtn").onclick = async () => {
   loginErr();
@@ -183,12 +184,16 @@ $("#googleBtn").onclick = async () => {
     if (user.email !== ADMIN_EMAIL) { await auth.signOut(); loginErr(T[lang].l_notadmin); } else location.href = "admin.html";
   } catch (err) { console.error(err); }
 };
-if (auth) auth.onAuthStateChanged(user => {
+if (auth) auth.onAuthStateChanged(async user => {
   const admin = !!user && user.email === ADMIN_EMAIL;
-  $("#loginBtn").dataset.i18n = admin ? "dashboard" : user ? "logout" : "login";
-  $("#loginBtn").onclick = admin ? () => location.href = "admin.html" : user ? () => auth.signOut() : openSheet;
-  $("#logoutLink").hidden = !admin;
-  if (user) { closeSheet(); if (!admin) toast(T[lang].l_in); }
+  let portal = null;
+  if (user && !admin) {
+    try { const d = await db.collection("users").doc(user.uid).get(); if (d.exists && d.data().role === "student") portal = "student.html"; } catch (e) { console.warn(e); }
+  }
+  $("#loginBtn").dataset.i18n = admin ? "dashboard" : portal ? "portal" : user ? "logout" : "login";
+  $("#loginBtn").onclick = admin ? () => location.href = "admin.html" : portal ? () => location.href = portal : user ? () => auth.signOut() : openSheet;
+  $("#logoutLink").hidden = !user;
+  if (user) { closeSheet(); if (portal && goPortal) location.href = portal; else if (!admin && !portal) toast(T[lang].l_in); }
   renderLang();
 });
 $("#logoutLink").onclick = e => { e.preventDefault(); if (auth) auth.signOut(); };
