@@ -1,6 +1,6 @@
 /* CLC student portal – Step 4.
    Shows only this student's own classes, timetable, exams, grades and certificates.
-   The real protection is in firestore.rules (a student can only read their own records). */
+   The real protection is in firestore.rules (a student can only read their own records) */
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
