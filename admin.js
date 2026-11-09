@@ -9,7 +9,7 @@ const store = { get: k => { try { return localStorage.getItem(k); } catch { retu
 
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth(), db = firebase.firestore();
-let enrols = [], users = [], programs = [], classes = [], members = [], started = false;
+let enrols = [], users = [], programs = [], classes = [], members = [], reports = [], started = false;
 
 /* ---------- Theme ---------- */
 function setTheme(t) { document.documentElement.dataset.theme = t; $('meta[name="theme-color"]').content = t === "dark" ? "#000000" : "#F2F2F7"; }
@@ -33,6 +33,7 @@ function start() {
   db.collection("users").onSnapshot(s => { users = s.docs.map(d => ({ id: d.id, ...d.data() })); render(); }, fail);
   db.collection("programs").orderBy("order").onSnapshot(s => { programs = s.docs.map(d => ({ id: d.id, ...d.data() })); render(); }, fail);
   db.collection("classes").onSnapshot(s => { classes = s.docs.map(d => ({ id: d.id, ...d.data() })); render(); }, fail);
+  db.collection("reports").onSnapshot(s => { reports = s.docs.map(d => ({ id: d.id, ...d.data() })); render(); }, fail);
   db.collection("memberships").onSnapshot(s => { members = s.docs.map(d => ({ id: d.id, ...d.data() })); render(); }, fail);
 }
 
@@ -40,7 +41,7 @@ function start() {
 const mail = (to, subject, body) => `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 const when = x => x && x.toDate ? x.toDate().toLocaleDateString() : "";
 
-const VIEWS = { enrolments: "Enrolments", students: "Students", teachers: "Teachers", classes: "Classes", programs: "Programs" };
+const VIEWS = { enrolments: "Enrolments", students: "Students", teachers: "Teachers", classes: "Classes", programs: "Programs", reports: "Reports" };
 const ADD = { students: "Add student", teachers: "Add teacher", classes: "Add class", programs: "Add program" };
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const view = () => { const v = (location.hash || "#enrolments").slice(1); return VIEWS[v] ? v : "enrolments"; };
@@ -79,7 +80,7 @@ function render() {
       const st = u.status || "active";
       return `<li class="item"><div class="grow"><b>${esc(u.name)}</b><small>ID: ${esc(u.loginId)}${u.email ? " · " + esc(u.email) : ""}</small></div>
         <span class="pill s-${esc(st)}">${esc(st)}</span>
-        <div class="acts">${u.email ? `<a class="btn small ghost" href="mailto:${encodeURIComponent(u.email)}">Email</a>` : ""}
+        <div class="acts"><button class="btn small" data-act="preview" data-id="${u.id}">Preview</button>${u.email ? `<a class="btn small ghost" href="mailto:${encodeURIComponent(u.email)}">Email</a>` : ""}
         <button class="btn small ghost" data-act="toggle" data-id="${u.id}">${st === "active" ? "Deactivate" : "Activate"}</button></div></li>`;
     }).join("");
   } else if (v === "classes") {
@@ -89,11 +90,21 @@ function render() {
         const n = members.filter(m => m.classId === c.id).length, st = c.status || "active";
         const btn = (act, label, cls = "ghost") => `<button class="btn small ${cls}" data-act="${act}" data-id="${c.id}">${label}</button>`;
         return `<li class="item"><div class="grow"><b>${esc(progName(c.programId))}${c.label ? " · " + esc(c.label) : ""}</b>
-          <small>${DAYS[c.day] || ""} ${esc(c.time)} · ${esc(c.teacherName || "No teacher yet")}</small>
+          <small>${DAYS[c.day] || ""} ${esc(c.time)} · ${esc(c.teacherName || "No teacher yet")}${c.level ? " · " + esc(levelText(c.level, "en")) : ""}</small>
+          <small>${safeUrl(c.zoomUrl) ? "Zoom ✓" : "Zoom –"} · ${safeUrl(c.telegramUrl) ? "Telegram ✓" : "Telegram –"}</small>
           <small>${n} student${n === 1 ? "" : "s"}${c.public ? " · shown on website" : " · not on website"}</small></div>
           <span class="pill s-${st === "completed" ? "enrolled" : "active"}">${esc(st)}</span>
           <div class="acts">${btn("members", "Students")}${btn("records", "Exams & grades")}${btn("editClass", "Edit")}${btn("delClass", "Delete", "danger")}</div></li>`;
       }).join("");
+  } else if (v === "reports") {
+    empty = "No reports yet. Reports from students and teachers appear here.";
+    html = reports.slice().sort((a, b) => ts(b.createdAt) - ts(a.createdAt)).filter(r => hit({ name: r.fromName + " " + (r.subject || ""), email: r.text, loginId: r.loginId })).map(r => `<li class="item"><div class="grow">
+      <b>${esc(r.subject || "(no subject)")}</b><small>${esc(r.fromName)} · ${esc(r.fromRole)} · ID ${esc(r.loginId)} · ${when2(r.createdAt)}</small>
+      <small style="color:var(--text)">${esc(r.text)}</small>${r.adminReply ? `<small class="reply">Your reply: ${esc(r.adminReply)}</small>` : ""}</div>
+      <span class="pill s-${r.status === "resolved" ? "active" : "pending"}">${esc(r.status === "resolved" ? "resolved" : "new")}</span>
+      <div class="acts"><button class="btn small" data-act="reply" data-id="${r.id}">Reply</button>
+      <button class="btn small ghost" data-act="toggleReport" data-id="${r.id}">${r.status === "resolved" ? "Reopen" : "Mark resolved"}</button>
+      <button class="btn small danger" data-act="delReport" data-id="${r.id}">Delete</button></div></li>`).join("");
   } else {
     empty = `No programs yet. <br><br><button class="btn small" data-act="seed">Load starter programs</button>`;
     html = programs.filter(p => hit({ name: p.en + " " + p.my })).map(p => `<li class="item"><span class="dot">${esc(p.icon)}</span>
@@ -122,6 +133,10 @@ $("#list").addEventListener("click", async e => {
     if (act === "editClass") openClass(classes.find(x => x.id === id));
     if (act === "members") openMembers(classes.find(x => x.id === id));
     if (act === "records") openRecords(classes.find(x => x.id === id));
+    if (act === "preview") openPreview(us);
+    if (act === "reply") openReply(reports.find(x => x.id === id));
+    if (act === "toggleReport") { const r = reports.find(x => x.id === id); await db.collection("reports").doc(id).update({ status: r.status === "resolved" ? "new" : "resolved" }); }
+    if (act === "delReport" && confirm("Delete this report?")) await db.collection("reports").doc(id).delete();
     if (act === "delClass") await deleteClass(classes.find(x => x.id === id));
   } catch (err) { console.error(err); toast("Something went wrong. Try again."); }
 });
@@ -235,6 +250,9 @@ function openClass(c = {}) {
       <label><span>Time</span><input name="time" placeholder="7:00 – 8:00 PM" value="${esc(c.time)}"></label>
       <label><span>Place (English)</span><input name="venue_en" placeholder="Online via Zoom" value="${esc(c.venue_en)}"></label>
       <label><span>Place (မြန်မာ)</span><input name="venue_my" value="${esc(c.venue_my)}"></label>
+      <label><span>Level</span><select name="level">${opts([["", "— not set —"], ...LEVELS.map(l => [l, levelText(l, "en") + " · " + LEVEL_NAME.my[l]])], c.level || "")}</select></label>
+      <label><span>Telegram link</span><input name="telegramUrl" placeholder="https://t.me/…" autocapitalize="none" value="${esc(c.telegramUrl)}"></label>
+      <label><span>Zoom link</span><input name="zoomUrl" placeholder="https://zoom.us/j/…" autocapitalize="none" value="${esc(c.zoomUrl)}"></label>
       <label><span>Status</span><select name="status">${opts([["active", "Active"], ["completed", "Completed"]], c.status || "active")}</select></label>
       <label><span>On website</span><select name="public">${opts([["yes", "Show on public schedule"], ["no", "Keep private"]], c.public === false ? "no" : "yes")}</select></label>
     </form><button class="btn wide" id="mSave">Save</button>`);
@@ -242,13 +260,14 @@ function openClass(c = {}) {
     const f = $("#mForm").elements, t = users.find(u => u.id === f.teacherId.value);
     const d = { programId: f.programId.value, label: f.label.value.trim(), teacherId: f.teacherId.value, teacherName: t ? t.name : "",
       day: Number(f.day.value), time: f.time.value.trim(), venue_en: f.venue_en.value.trim(), venue_my: f.venue_my.value.trim() || f.venue_en.value.trim(),
-      status: f.status.value, public: f.public.value === "yes" };
+      status: f.status.value, public: f.public.value === "yes", level: f.level.value, telegramUrl: safeUrl(f.telegramUrl.value), zoomUrl: safeUrl(f.zoomUrl.value) };
+    if ((f.telegramUrl.value.trim() && !d.telegramUrl) || (f.zoomUrl.value.trim() && !d.zoomUrl)) return mErr("Links must start with https://");
     if (!d.time) return mErr("Please enter the class time.");
     const ref = c.id ? db.collection("classes").doc(c.id) : db.collection("classes").doc(), pub = db.collection("publicSchedule").doc(ref.id);
     const b = db.batch();
     b.set(ref, { ...d, ...(c.id ? {} : { createdAt: firebase.firestore.FieldValue.serverTimestamp() }) }, { merge: true });
     // Only non-sensitive fields go to the public schedule (no teacher or student information).
-    if (d.public && d.status === "active") b.set(pub, { programId: d.programId, label: d.label, day: d.day, time: d.time, venue_en: d.venue_en, venue_my: d.venue_my });
+    if (d.public && d.status === "active") b.set(pub, { programId: d.programId, label: d.label, day: d.day, time: d.time, venue_en: d.venue_en, venue_my: d.venue_my, level: d.level });
     else b.delete(pub);
     try { await b.commit(); closeModal(); toast("Class saved"); } catch (e) { console.error(e); mErr("Could not save. Try again."); }
   };
@@ -259,9 +278,11 @@ async function deleteClass(c) {
   const b = db.batch();
   b.delete(db.collection("classes").doc(c.id)); b.delete(db.collection("publicSchedule").doc(c.id));
   members.filter(m => m.classId === c.id).forEach(m => b.delete(db.collection("memberships").doc(m.id)));
-  const [ex, gr] = await Promise.all([db.collection("exams").where("classId", "==", c.id).get(), db.collection("grades").where("classId", "==", c.id).get()]);
-  [...ex.docs, ...gr.docs].forEach(d => b.delete(d.ref));
-  await b.commit(); toast("Class deleted");
+  const snaps = await Promise.all(["exams", "grades", "attendance", "attendanceEntries", "materials", "messages"].map(n => db.collection(n).where("classId", "==", c.id).get()));
+  const refs = snaps.flatMap(s => s.docs.map(d => d.ref));
+  await b.commit();
+  for (let i = 0; i < refs.length; i += 400) { const bb = db.batch(); refs.slice(i, i + 400).forEach(r => bb.delete(r)); await bb.commit(); }
+  toast("Class deleted");
 }
 
 /* ---------- Students in a class ---------- */
@@ -293,12 +314,13 @@ async function openRecords(c) {
 
   sheet(`Records · ${progName(c.programId)}`, `
     <p class="sub">Exams</p>
-    <ul class="group">${exams.map(e => `<li class="item"><div class="grow"><b>${esc(e.title)}</b><small>${esc(e.date)} ${esc(e.time)} ${e.venue ? "· " + esc(e.venue) : ""}</small></div>${rowBtn("delExam", e.id, "Delete")}</li>`).join("") || none("No exams yet.")}</ul>
+    <ul class="group">${exams.map(e => `<li class="item"><div class="grow"><b>${esc(e.title)}</b><small>${esc(e.date)} ${esc(e.time)} ${e.venue ? "· " + esc(e.venue) : ""}${safeUrl(e.link) ? " · link ✓" : ""}</small></div>${rowBtn("delExam", e.id, "Delete")}</li>`).join("") || none("No exams yet.")}</ul>
     <form id="exForm" class="group form" style="margin-top:10px" novalidate>
       <label><span>Title</span><input name="title" placeholder="Midterm exam"></label>
       <label><span>Date</span><input name="date" type="date"></label>
       <label><span>Time</span><input name="time" placeholder="7:00 PM"></label>
-      <label><span>Place</span><input name="venue" placeholder="Online"></label></form>
+      <label><span>Place</span><input name="venue" placeholder="Online"></label>
+      <label><span>Zoom / exam link</span><input name="link" placeholder="https://" autocapitalize="none"></label></form>
     <button class="btn small wide" data-r="addExam">Add exam</button>
 
     <p class="sub">Students · completion</p>
@@ -324,7 +346,8 @@ async function openRecords(c) {
       if (a === "addExam") {
         const f = $("#exForm").elements;
         if (!f.title.value.trim() || !f.date.value) return mErr("Exam needs a title and a date.");
-        await db.collection("exams").add({ classId: c.id, title: f.title.value.trim(), date: f.date.value, time: f.time.value.trim(), venue: f.venue.value.trim() });
+        if (f.link.value.trim() && !safeUrl(f.link.value)) return mErr("Links must start with https://");
+        await db.collection("exams").add({ classId: c.id, title: f.title.value.trim(), date: f.date.value, time: f.time.value.trim(), venue: f.venue.value.trim(), link: safeUrl(f.link.value) });
       }
       if (a === "delExam") await db.collection("exams").doc(id).delete();
       if (a === "addGrade") {
@@ -344,5 +367,44 @@ async function openRecords(c) {
       }
       openRecords(c);
     } catch (err) { console.error(err); mErr("Could not save. Try again."); }
+  };
+}
+
+/* ---------- Preview a student or teacher profile ---------- */
+async function openPreview(u) {
+  if (!u) return;
+  const row = (k, v) => v ? `<li><span>${k}</span><b>${esc(v)}</b></li>` : "";
+  const info = `<ul class="group info" style="margin-top:14px">${row("Name", u.name)}${row("Login ID", u.loginId)}${row("Email", u.email)}${row("Phone", u.phone)}${row("Location", u.location)}${row("Status", u.status || "active")}${row("Joined", when(u.createdAt))}</ul>
+    ${u.about ? `<p class="sub">About</p><p class="body">${esc(u.about).replace(/\n/g, "<br>")}</p>` : ""}`;
+  let extra = "";
+  if (u.role === "student") {
+    const en = await db.collection("attendanceEntries").where("studentId", "==", u.id).get();
+    const entries = en.docs.map(d => d.data());
+    const mine = members.filter(m => m.studentId === u.id).map(m => ({ m, c: classes.find(x => x.id === m.classId) })).filter(r => r.c);
+    extra = `<p class="sub">Classes</p><ul class="group">${mine.map(({ m, c }) => { const s = attStats(entries.filter(x => x.classId === c.id).map(x => x.status));
+      return `<li class="item"><div class="grow"><b>${esc(progName(c.programId))}${c.label ? " · " + esc(c.label) : ""}</b><small>${DAYS[c.day] || ""} ${esc(c.time)} · ${esc(c.teacherName || "No teacher")}</small>
+        <small>Attendance: ${s.pct === null ? "no records yet" : s.pct + "% (" + s.present + " present, " + s.late + " late, " + s.absent + " absent, " + s.excused + " excused)"}</small></div>
+        <span class="pill s-${m.status === "completed" ? "enrolled" : "active"}">${esc(m.status || "enrolled")}</span></li>`; }).join("") || `<li class="empty"><div>Not in any class yet.</div></li>`}</ul>`;
+  } else {
+    const pf = await db.collection("teacherProfiles").doc(u.id).get();
+    const p = pf.exists ? pf.data() : {};
+    const mine = classes.filter(c => c.teacherId === u.id);
+    extra = `<p class="sub">Intro video</p>${safeUrl(p.introVideo) ? videoBlock(p.introVideo, "▶ Open video") : `<p class="note">No intro video yet.</p>`}
+      <p class="sub">Classes taught</p><ul class="group">${mine.map(c => { const n = members.filter(m => m.classId === c.id).length;
+      return `<li class="item"><div class="grow"><b>${esc(progName(c.programId))}${c.label ? " · " + esc(c.label) : ""}</b><small>${DAYS[c.day] || ""} ${esc(c.time)}${c.level ? " · " + esc(levelText(c.level, "en")) : ""}</small><small>${n} student${n === 1 ? "" : "s"}</small></div></li>`; }).join("") || `<li class="empty"><div>No classes assigned.</div></li>`}</ul>`;
+  }
+  sheet(`${u.role === "teacher" ? "Teacher" : "Student"} profile`, info + extra, "Close");
+}
+
+/* ---------- Reply to a report ---------- */
+function openReply(r) {
+  if (!r) return;
+  sheet("Reply to report", `<p class="note center">${esc(r.fromName)} · ${esc(r.subject || "")}</p><p class="body" style="margin-top:8px">${esc(r.text)}</p>
+    <form id="rpf" class="group form" novalidate><label><textarea name="reply" rows="4" maxlength="1000" style="text-align:left" placeholder="Your reply">${esc(r.adminReply)}</textarea></label></form>
+    <button class="btn wide" id="mSave">Save reply and mark resolved</button>`);
+  $("#mSave").onclick = async () => {
+    const reply = $("#rpf").elements.reply.value.trim(); if (!reply) return mErr("Write a reply first.");
+    try { await db.collection("reports").doc(r.id).update({ adminReply: reply, status: "resolved", repliedAt: firebase.firestore.FieldValue.serverTimestamp() }); closeModal(); toast("Reply saved"); }
+    catch (e) { console.error(e); mErr("Could not save. Try again."); }
   };
 }
