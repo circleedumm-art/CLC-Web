@@ -160,3 +160,18 @@ h3{font-size:20px;text-align:center}
 .seg.mini{flex-wrap:wrap;margin-left:auto}.seg.mini button{padding:4px 9px;font-size:13px}
 .go{cursor:pointer}.go:hover{background:var(--fill)}.go::after{content:"›";color:var(--sub);font-size:24px}
 .btn.small.wide{margin-top:10px}
+
+/* ---------- Upgrade: charts, messages, links ---------- */
+.sec{font-size:20px;margin:26px 0 2px;letter-spacing:-.01em}
+.pbar{height:8px;border-radius:4px;background:var(--fill);overflow:hidden;margin:8px 0}.pbar i{display:block;height:100%;background:#34C759;border-radius:4px}
+.att{gap:16px!important}.att svg{display:block;flex:none;color:var(--text)}
+.thread{max-height:42vh;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:12px 4px 4px;margin-top:10px}
+.bub{max-width:82%;padding:8px 12px;border-radius:18px;font-size:16px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}
+.bub small{display:block;font-size:11px;opacity:.65;margin-top:2px}
+.bub.me{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:6px}
+.bub.them{align-self:flex-start;background:var(--fill);border-bottom-left-radius:6px}
+.vid{position:relative;padding-top:56.25%;border-radius:12px;overflow:hidden;margin:12px 0;background:#000}.vid iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.reply{color:var(--accent)!important}
+.tabs.six a{white-space:nowrap}
+@media(max-width:720px){.tabs.six a{font-size:11px;padding:8px 0}}
+.rowlinks{display:flex;gap:8px;flex-wrap:wrap}
