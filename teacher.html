@@ -20,6 +20,7 @@
   </a>
   <nav class="tabs" aria-label="Portal">
     <a href="#classes" data-i18n="classes"></a>
+    <a href="#messages" data-i18n="messages"></a>
     <a href="#profile" data-i18n="profile"></a>
   </nav>
   <div class="controls">
@@ -38,12 +39,14 @@
   <div id="view"></div>
 </main>
 
+<div class="scrim" id="modal" hidden></div>
 <div class="toast" id="toast" hidden></div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="firebase-config.js"></script>
+<script src="common.js"></script>
 <script src="teacher.js"></script>
 </body>
 </html>
