@@ -5,7 +5,7 @@ service cloud.firestore {
     // ---- Helpers ----------------------------------------------------------
     function isAdmin() {
       return request.auth != null
-        && request.auth.token.email == 'your-admin-gmail@gmail.com'   // <- same email as ADMIN_EMAIL
+        && request.auth.token.email == 'circle.edu.mm@gmail.com'   // <- same email as ADMIN_EMAIL
         && request.auth.token.email_verified == true;
     }
     function signedIn() { return request.auth != null; }
@@ -21,9 +21,15 @@ service cloud.firestore {
       return signedIn() && active()
         && get(/databases/$(database)/documents/classes/$(classId)).data.teacherId == request.auth.uid;
     }
-    function timeFieldsOnly() {
-      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['day', 'time', 'venue_en', 'venue_my', 'updatedAt']);
+    // Teachers may change these fields on their own classes (links stay private to the class).
+    function classFieldsOnly() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['day', 'time', 'venue_en', 'venue_my', 'level', 'telegramUrl', 'zoomUrl', 'updatedAt']);
     }
+    // Only these fields are ever public.
+    function publicFieldsOnly() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['day', 'time', 'venue_en', 'venue_my', 'level']);
+    }
+    function httpsOrEmpty(v) { return v == '' || (v is string && v.matches('^https://.{3,500}$')); }
 
     // ---- Guests -----------------------------------------------------------
     // Guests may only ADD a pending enrolment. They can never read, change or delete anything.
@@ -56,13 +62,14 @@ service cloud.firestore {
     match /classes/{id} {
       allow get: if inClass(id) || (signedIn() && active() && resource.data.teacherId == request.auth.uid);
       allow list: if signedIn() && active() && resource.data.teacherId == request.auth.uid;
-      allow update: if signedIn() && active() && resource.data.teacherId == request.auth.uid && timeFieldsOnly();
+      allow update: if signedIn() && active() && resource.data.teacherId == request.auth.uid && classFieldsOnly();
     }
 
     match /exams/{id} {
       allow read: if inClass(resource.data.classId) || teaches(resource.data.classId);
       allow create: if teaches(request.resource.data.classId)
-        && request.resource.data.keys().hasOnly(['classId','title','date','time','venue'])
+        && request.resource.data.keys().hasOnly(['classId','title','date','time','venue','link'])
+        && httpsOrEmpty(request.resource.data.get('link', ''))
         && request.resource.data.title is string && request.resource.data.title.size() <= 120;
       allow delete: if teaches(resource.data.classId);
     }
@@ -90,11 +97,72 @@ service cloud.firestore {
         && id == request.resource.data.classId + '_' + request.resource.data.date;
     }
 
+    // Per-student attendance entries: a student sees only their own; the class teacher sees the class.
+    match /attendanceEntries/{id} {
+      allow read: if (signedIn() && active() && resource.data.studentId == request.auth.uid)
+                  || teaches(resource.data.classId);
+      allow create, update: if teaches(request.resource.data.classId)
+        && request.resource.data.keys().hasOnly(['classId','date','studentId','status'])
+        && request.resource.data.status in ['present','late','absent','excused']
+        && id == request.resource.data.classId + '_' + request.resource.data.date + '_' + request.resource.data.studentId;
+    }
+
+    // Class materials are links added by the teacher; only class members and the teacher can read them.
+    match /materials/{id} {
+      allow read: if inClass(resource.data.classId) || teaches(resource.data.classId);
+      allow create: if teaches(request.resource.data.classId)
+        && request.resource.data.keys().hasOnly(['classId','title','url','createdAt'])
+        && request.resource.data.title is string && request.resource.data.title.size() > 0 && request.resource.data.title.size() <= 150
+        && request.resource.data.url is string && request.resource.data.url.matches('^https://.{3,500}$');
+      allow delete: if teaches(resource.data.classId);
+    }
+
+    // Teacher profile shown to students: name, intro and intro-video link only (no phone or email).
+    match /teacherProfiles/{uid} {
+      allow read: if signedIn() && active();
+      allow create, update: if signedIn() && active() && request.auth.uid == uid
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'teacher'
+        && request.resource.data.keys().hasOnly(['name','about','introVideo','updatedAt'])
+        && request.resource.data.about.size() <= 1000
+        && httpsOrEmpty(request.resource.data.introVideo);
+    }
+
+    // Messages between a student and their class teacher (not real time).
+    match /messages/{id} {
+      allow read: if signedIn() && active()
+        && (resource.data.studentId == request.auth.uid || resource.data.teacherId == request.auth.uid);
+      allow create: if signedIn() && active()
+        && request.resource.data.keys().hasOnly(['classId','studentId','teacherId','from','text','createdAt'])
+        && request.resource.data.text is string && request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 1000
+        && request.resource.data.createdAt == request.time
+        && (
+          (request.resource.data.from == 'student' && request.resource.data.studentId == request.auth.uid
+            && inClass(request.resource.data.classId)
+            && get(/databases/$(database)/documents/classes/$(request.resource.data.classId)).data.teacherId == request.resource.data.teacherId)
+          ||
+          (request.resource.data.from == 'teacher' && request.resource.data.teacherId == request.auth.uid
+            && teaches(request.resource.data.classId)
+            && exists(/databases/$(database)/documents/memberships/$(request.resource.data.classId + '_' + request.resource.data.studentId)))
+        );
+    }
+
+    // Reports to the admin. The sender can read their own reports and the admin's reply.
+    match /reports/{id} {
+      allow read: if signedIn() && resource.data.fromUid == request.auth.uid;
+      allow create: if signedIn() && active()
+        && request.resource.data.keys().hasOnly(['fromUid','fromName','fromRole','loginId','subject','text','status','createdAt'])
+        && request.resource.data.fromUid == request.auth.uid
+        && request.resource.data.fromRole == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
+        && request.resource.data.status == 'new'
+        && request.resource.data.text is string && request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 2000
+        && request.resource.data.createdAt == request.time;
+    }
+
     // ---- Public website content ------------------------------------------
     match /programs/{id} { allow read: if true; }
     match /publicSchedule/{id} {
       allow read: if true;
-      allow update: if teaches(id) && timeFieldsOnly();   // keeps the public timetable in step with a teacher's time change
+      allow update: if teaches(id) && publicFieldsOnly();   // keeps the public timetable in step with a teacher's change
     }
 
     // ---- Everything else: admin only -------------------------------------
