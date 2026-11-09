@@ -9,7 +9,7 @@ const store = { get: k => { try { return localStorage.getItem(k); } catch { retu
 
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth(), db = firebase.firestore(), FV = firebase.firestore.FieldValue;
-let lang = store.get("clc_lang") || "en", me = null, ready = false, programs = [], classes = [], members = [], cache = {}, cur = {}, rt = 0;
+let lang = store.get("clc_lang") || "en", me = null, ready = false, programs = [], classes = [], members = [], cache = {}, cur = {}, rt = 0, msgs = [], reports = [], tp = {};
 
 const DAYS = {
   en: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
@@ -37,7 +37,17 @@ const T = {
     name: "အမည်", id: "ID", email: "အီးမေးလ်", phone: "ဖုန်း", location: "နေရပ်", about: "ကိုယ်ပိုင်အကြောင်း", mine: "ကျွန်ုပ်၏ အချက်အလက်", save: "သိမ်းမည်", saved: "သိမ်းပြီးပါပြီ",
     pw: "စကားဝှက် ပြောင်းရန်", cur: "လက်ရှိ စကားဝှက်", nw: "စကားဝှက်အသစ်", change: "စကားဝှက် ပြောင်းမည်", pwOk: "စကားဝှက် ပြောင်းပြီးပါပြီ", pwBad: "လက်ရှိ စကားဝှက် မှားနေပါသည် သို့မဟုတ် အသစ်သည် တိုလွန်းသည် (အနည်းဆုံး ၆ လုံး)။" }
 };
-const t = k => T[lang][k];
+Object.assign(T.en, COMMON_T.en, {
+  messages: "Messages", mat: "Materials", introVideo: "Intro video link", badUrl: "Links must start with https://", matTitle: "Title", matUrl: "Link", addMat: "Add material", noMat: "No materials yet.",
+  matHelp: "Paste a link to a file or folder (Google Drive, Telegram, Dropbox, YouTube…). Students in this class can open it.", linkLbl: "Link", linksTitle: "Class links", tgUrl: "Telegram group link", zoomUrl: "Zoom link",
+  levelLbl: "Level", noLevel: "— not set —", newMsgs: "new", noStudentsMsg: "No students to message yet.", teachProfile: "Teaching profile (shown to your students)",
+  introHelp: "A short intro video (about 50 seconds). Upload it to YouTube (unlisted), Facebook or Telegram and paste the link here.", msgStudents: "Message a student", openLink: "Open" });
+Object.assign(T.my, COMMON_T.my, {
+  messages: "မက်ဆေ့ချ်", mat: "ဖိုင်များ", introVideo: "မိတ်ဆက်ဗီဒီယို လင့်ခ်", badUrl: "လင့်ခ်သည် https:// ဖြင့် စရပါမည်။", matTitle: "ခေါင်းစဉ်", matUrl: "လင့်ခ်", addMat: "ဖိုင် ထည့်မည်", noMat: "ဖိုင် မရှိသေးပါ။",
+  matHelp: "ဖိုင် သို့မဟုတ် ဖိုလ်ဒါ လင့်ခ်ကို ထည့်ပါ (Google Drive, Telegram, Dropbox, YouTube…)။ ဤအတန်းမှ ကျောင်းသားများ ဖွင့်ကြည့်နိုင်ပါသည်။", linkLbl: "လင့်ခ်", linksTitle: "အတန်း လင့်ခ်များ", tgUrl: "Telegram အဖွဲ့ လင့်ခ်", zoomUrl: "Zoom လင့်ခ်",
+  levelLbl: "အဆင့်", noLevel: "— မသတ်မှတ်ရသေး —", newMsgs: "အသစ်", noStudentsMsg: "မက်ဆေ့ချ်ပို့ရန် ကျောင်းသား မရှိသေးပါ။", teachProfile: "သင်ကြားရေး ပရိုဖိုင် (ကျောင်းသားများ မြင်ရမည်)",
+  introHelp: "မိတ်ဆက်ဗီဒီယို တိုတို (စက္ကန့် ၅၀ ခန့်)။ YouTube (unlisted)၊ Facebook သို့မဟုတ် Telegram သို့ တင်ပြီး လင့်ခ်ကို ဤနေရာတွင် ထည့်ပါ။", msgStudents: "ကျောင်းသားထံ မက်ဆေ့ချ်ပို့ရန်", openLink: "ဖွင့်မည်" });
+const t = k => T[lang][k] ?? k;
 
 /* ---------- Theme, language, toast ---------- */
 function setTheme(x) { document.documentElement.dataset.theme = x; $('meta[name="theme-color"]').content = x === "dark" ? "#000000" : "#F2F2F7"; }
@@ -64,13 +74,16 @@ async function load() {
     programs = docs(pr); classes = docs(cs);
     const ms = await Promise.all(classes.map(c => db.collection("memberships").where("classId", "==", c.id).get()));
     members = ms.flatMap(docs);
+    const [mg, rp, pf] = await Promise.all([db.collection("messages").where("teacherId", "==", me.id).get().catch(() => null),
+      db.collection("reports").where("fromUid", "==", me.id).get().catch(() => null), db.collection("teacherProfiles").doc(me.id).get().catch(() => null)]);
+    msgs = mg ? docs(mg) : []; reports = rp ? docs(rp) : []; tp = pf && pf.exists ? pf.data() : {};
   } catch (e) { console.error(e); toast(t("loadFail")); }
 }
 async function classData(id) {
   if (cache[id]) return cache[id];
   const q = n => db.collection(n).where("classId", "==", id).get();
-  const [ex, gr, at] = await Promise.all([q("exams"), q("grades"), q("attendance")]);
-  return cache[id] = { exams: docs(ex), grades: docs(gr), att: docs(at) };
+  const [ex, gr, at, mt] = await Promise.all([q("exams"), q("grades"), q("attendance"), q("materials")]);
+  return cache[id] = { exams: docs(ex), grades: docs(gr), att: docs(at), mats: docs(mt) };
 }
 
 /* ---------- Helpers ---------- */
@@ -90,10 +103,11 @@ function render() {
   $$("[data-lang]").forEach(b => b.setAttribute("aria-pressed", b.dataset.lang === lang));
   if (!me || !ready) return;
   const token = ++rt, [v, id, tab] = (location.hash || "#classes").slice(1).split("/");
-  $$(".tabs a").forEach(a => a.setAttribute("aria-current", a.hash === (v === "profile" ? "#profile" : "#classes")));
+  $$(".tabs a").forEach(a => a.setAttribute("aria-current", a.hash === (v === "profile" ? "#profile" : v === "messages" ? "#messages" : "#classes")));
+  if (v === "messages") { $("#title").textContent = t("messages"); $("#view").innerHTML = messagesHtml(); bindMessages(); return; }
   if (v === "profile") { $("#title").textContent = t("profile"); $("#view").innerHTML = profileHtml(); bindProfile(); return; }
   const c = v === "class" && classes.find(x => x.id === id);
-  if (c) return renderClass(c, ["att", "grades", "exams", "info"].includes(tab) ? tab : "att", token);
+  if (c) return renderClass(c, SUBS.includes(tab) ? tab : "att", token);
   $("#title").textContent = `${t("hi")}, ${first()}`;
   $("#view").innerHTML = `<ul class="group">${classes.slice().sort((a, b) => a.day - b.day || String(a.time).localeCompare(String(b.time))).map(c => `
     <li class="item go" tabindex="0" data-go="${c.id}"><div class="grow"><b>${esc(cTitle(c))}</b>
@@ -109,10 +123,11 @@ async function renderClass(c, tab, token) {
   const d = await classData(c.id);
   if (token !== rt) return;
   $("#view").innerHTML = `<a class="back" href="#classes">‹ ${t("classes")}</a>
-    <div class="seg full">${["att", "grades", "exams", "info"].map(s => `<button data-sub="${s}" aria-pressed="${s === tab}">${t(s)}</button>`).join("")}</div>${BODY[tab](c, d)}`;
+    <div class="seg full">${SUBS.map(s => `<button data-sub="${s}" aria-pressed="${s === tab}">${t(s)}</button>`).join("")}</div>${BODY[tab](c, d)}`;
   $$("[data-sub]").forEach(b => b.onclick = () => location.hash = `#class/${c.id}/${b.dataset.sub}`);
   BIND[tab](c, d);
 }
+const SUBS = ["att", "grades", "exams", "mat", "info"];
 const guard = fn => async (...a) => { try { await fn(...a); } catch (e) { console.error(e); toast(t("fail")); } };
 
 /* ---------- Class tabs ---------- */
@@ -142,26 +157,30 @@ const BODY = {
   },
   exams(c, d) {
     const list = d.exams.slice().sort((a, b) => String(a.date).localeCompare(String(b.date))).map(e => `<li class="item"><div class="grow"><b>${esc(e.title)}</b>
-      <small>${fmt(e.date)} ${esc(e.time)}${e.venue ? " · " + esc(e.venue) : ""}</small></div><button class="btn small danger" data-dele="${e.id}">${t("del")}</button></li>`).join("") || empty(t("noExams"));
+      <small>${fmt(e.date)} ${esc(e.time)}${e.venue ? " · " + esc(e.venue) : ""}</small>${safeUrl(e.link) ? `<div class="rowlinks" style="margin-top:6px">${linkBtn(e.link, "🔗 " + t("openLink"))}</div>` : ""}</div><button class="btn small danger" data-dele="${e.id}">${t("del")}</button></li>`).join("") || empty(t("noExams"));
     return `<ul class="group" style="margin-top:14px">${list}</ul>
       <form id="ef" class="group form" style="margin-top:14px" novalidate>
         <label><span>${t("title")}</span><input name="title"></label>
         <label><span>${t("date")}</span><input name="date" type="date"></label>
         <label><span>${t("time")}</span><input name="time" placeholder="7:00 PM"></label>
-        <label><span>${t("place")}</span><input name="venue"></label></form>
+        <label><span>${t("place")}</span><input name="venue"></label>
+        <label><span>${t("linkLbl")}</span><input name="link" placeholder="https://" inputmode="url" autocapitalize="none"></label></form>
       <button class="btn wide" id="eadd">${t("addExam")}</button>`;
   },
   info(c, d) {
     const rate = m => { let a = 0, n = 0; d.att.forEach(x => { const v = x.records && x.records[m.studentId]; if (v === "present" || v === "late") { a++; n++; } else if (v === "absent") n++; }); return n ? `${a}/${n} (${Math.round(a / n * 100)}%)` : "—"; };
     const p = programs.find(x => x.id === c.programId);
     return `<ul class="group info" style="margin-top:14px"><li><span>${t("program")}</span><b>${esc(p ? p[lang] : "")}</b></li>
-        <li><span>${t("status")}</span><b>${t(c.status === "completed" ? "completed" : "active")}</b></li></ul>
+        <li><span>${t("status")}</span><b>${t(c.status === "completed" ? "completed" : "active")}</b></li>${c.level ? `<li><span>${t("levelLbl")}</span><b>${esc(levelText(c.level, lang))}</b></li>` : ""}</ul>
       <p class="sub">${t("changeTime")}</p>
       <form id="tf" class="group form" novalidate>
         <label><span>${t("day")}</span><select name="day">${opts(DAYS[lang].map((x, i) => [i, x]), c.day)}</select></label>
         <label><span>${t("time")}</span><input name="time" value="${esc(c.time)}"></label>
         <label><span>${t("placeEn")}</span><input name="venue_en" value="${esc(c.venue_en)}"></label>
-        <label><span>${t("placeMy")}</span><input name="venue_my" value="${esc(c.venue_my)}"></label></form>
+        <label><span>${t("placeMy")}</span><input name="venue_my" value="${esc(c.venue_my)}"></label>
+        <label><span>${t("levelLbl")}</span><select name="level">${opts([["", t("noLevel")], ...LEVELS.map(l => [l, levelText(l, lang)])], c.level || "")}</select></label>
+        <label><span>${t("tgUrl")}</span><input name="telegramUrl" placeholder="https://t.me/…" inputmode="url" autocapitalize="none" value="${esc(c.telegramUrl)}"></label>
+        <label><span>${t("zoomUrl")}</span><input name="zoomUrl" placeholder="https://zoom.us/j/…" inputmode="url" autocapitalize="none" value="${esc(c.zoomUrl)}"></label></form>
       <button class="btn wide" id="tsave">${t("saveTime")}</button>
       <p class="sub">${t("roster")}</p>
       <ul class="group">${mem(c).map(m => `<li class="item"><div class="grow"><b>${esc(m.studentName)}</b><small>ID ${esc(m.loginId)}</small></div>
@@ -183,7 +202,10 @@ const BIND = {
       const date = $("#adate").value; if (!date) return;
       const ids = new Set(live(c).map(m => m.studentId)), records = Object.fromEntries(Object.entries(cur).filter(([k]) => ids.has(k)));
       if (!Object.keys(records).length) return toast(t("noMarks"));
-      await db.collection("attendance").doc(`${c.id}_${date}`).set({ classId: c.id, date, records, teacherId: me.id, updatedAt: FV.serverTimestamp() });
+      const b = db.batch();
+      b.set(db.collection("attendance").doc(`${c.id}_${date}`), { classId: c.id, date, records, teacherId: me.id, updatedAt: FV.serverTimestamp() });
+      Object.entries(records).forEach(([sid, status]) => b.set(db.collection("attendanceEntries").doc(`${c.id}_${date}_${sid}`), { classId: c.id, date, studentId: sid, status }));
+      await b.commit();
       const i = d.att.findIndex(a => a.date === date), row = { id: `${c.id}_${date}`, classId: c.id, date, records };
       if (i >= 0) d.att[i] = row; else d.att.push(row);
       toast(t("savedAtt"));
@@ -209,28 +231,78 @@ const BIND = {
     }));
     $("#eadd").onclick = guard(async () => {
       const f = $("#ef").elements; if (!f.title.value.trim() || !f.date.value) return toast(t("needExam"));
-      const e = { classId: c.id, title: f.title.value.trim(), date: f.date.value, time: f.time.value.trim(), venue: f.venue.value.trim() };
+      if (f.link.value.trim() && !safeUrl(f.link.value)) return toast(t("badUrl"));
+      const e = { classId: c.id, title: f.title.value.trim(), date: f.date.value, time: f.time.value.trim(), venue: f.venue.value.trim(), link: safeUrl(f.link.value) };
       const ref = await db.collection("exams").add(e); d.exams.push({ ...e, id: ref.id }); render();
     });
   },
   info(c) {
     $("#tsave").onclick = guard(async () => {
       const f = $("#tf").elements; if (!f.time.value.trim()) return toast(t("needTime"));
-      const ch = { day: Number(f.day.value), time: f.time.value.trim(), venue_en: f.venue_en.value.trim(), venue_my: f.venue_my.value.trim() || f.venue_en.value.trim() };
+      if ((f.telegramUrl.value.trim() && !safeUrl(f.telegramUrl.value)) || (f.zoomUrl.value.trim() && !safeUrl(f.zoomUrl.value))) return toast(t("badUrl"));
+      const ch = { day: Number(f.day.value), time: f.time.value.trim(), venue_en: f.venue_en.value.trim(), venue_my: f.venue_my.value.trim() || f.venue_en.value.trim(), level: f.level.value };
+      const priv = { telegramUrl: safeUrl(f.telegramUrl.value), zoomUrl: safeUrl(f.zoomUrl.value) };
       const b = db.batch();
-      b.update(db.collection("classes").doc(c.id), { ...ch, updatedAt: FV.serverTimestamp() });
+      b.update(db.collection("classes").doc(c.id), { ...ch, ...priv, updatedAt: FV.serverTimestamp() });
       if (c.public && c.status !== "completed") b.update(db.collection("publicSchedule").doc(c.id), ch);   // keep the public timetable in step
-      await b.commit(); Object.assign(c, ch); toast(t("timeSaved")); render();
+      await b.commit(); Object.assign(c, ch, priv); toast(t("timeSaved")); render();
     });
   }
 };
+
+/* ---------- Materials (links to files hosted elsewhere) ---------- */
+BODY.mat = (c, d) => {
+  const list = (d.mats || []).map(m => `<li class="item"><div class="grow"><b>${esc(m.title)}</b><small>${esc(m.url)}</small></div>${linkBtn(m.url, t("openLink"))}<button class="btn small danger" data-delm="${m.id}">${t("del")}</button></li>`).join("") || empty(t("noMat"));
+  return `<p class="note" style="margin-top:14px">${t("matHelp")}</p><ul class="group">${list}</ul>
+    <form id="mf" class="group form" style="margin-top:14px" novalidate>
+      <label><span>${t("matTitle")}</span><input name="title" maxlength="150"></label>
+      <label><span>${t("matUrl")}</span><input name="url" placeholder="https://" inputmode="url" autocapitalize="none"></label></form>
+    <button class="btn wide" id="madd">${t("addMat")}</button>`;
+};
+BIND.mat = (c, d) => {
+  $$("[data-delm]").forEach(b => b.onclick = guard(async () => {
+    if (!confirm(t("confirmDel"))) return;
+    await db.collection("materials").doc(b.dataset.delm).delete(); d.mats = d.mats.filter(m => m.id !== b.dataset.delm); render();
+  }));
+  $("#madd").onclick = guard(async () => {
+    const f = $("#mf").elements, url = safeUrl(f.url.value);
+    if (!f.title.value.trim() || !url) return toast(t("badUrl"));
+    const m = { classId: c.id, title: f.title.value.trim(), url, createdAt: FV.serverTimestamp() };
+    const ref = await db.collection("materials").add(m); d.mats.push({ ...m, id: ref.id }); render();
+  });
+};
+
+/* ---------- Messages to students and report to admin (not real time) ---------- */
+function threadList(c, sid) { return msgs.filter(m => m.classId === c.id && m.studentId === sid).sort((a, b) => ts(a.createdAt) - ts(b.createdAt)); }
+function messagesHtml() {
+  const rows = classes.flatMap(c => live(c).map(m => ({ c, m, list: threadList(c, m.studentId) })))
+    .sort((a, b) => ts((b.list[b.list.length - 1] || {}).createdAt) - ts((a.list[a.list.length - 1] || {}).createdAt));
+  const items = rows.map(({ c, m, list }) => { const last = list[list.length - 1], n = unread(c.id + "_" + m.studentId, list, "teacher");
+    return `<li class="item go" tabindex="0" data-thread="${c.id}|${m.studentId}"><div class="grow"><b>${esc(m.studentName)}</b><small>${esc(cTitle(c))}</small>${last ? `<small>${esc(last.text.slice(0, 60))}</small>` : ""}</div>${n ? `<span class="pill s-pending">${n} ${t("newMsgs")}</span>` : ""}</li>`; }).join("") || empty(t("noStudentsMsg"));
+  return `<p class="sub">${t("msgStudents")}</p><ul class="group">${items}</ul>${reportBlock(t, reports)}`;
+}
+function bindMessages() {
+  bindReportBlock(db, me, t, reports, render, toast);
+  $("#view").onclick = e => {
+    const g = e.target.closest("[data-thread]"); if (!g) return;
+    const [cid, sid] = g.dataset.thread.split("|"), c = classes.find(x => x.id === cid), m = members.find(x => x.classId === cid && x.studentId === sid), list = threadList(c, sid);
+    markRead(cid + "_" + sid, list);
+    threadSheet($("#modal"), { title: `${m.studentName} · ${cTitle(c)}`, list, me: "teacher", t, onClose: render,
+      onSend: async text => { const d = { classId: cid, studentId: sid, teacherId: me.id, from: "teacher", text, createdAt: FV.serverTimestamp() };
+        await db.collection("messages").add(d); const row = { ...d, createdAt: { ms: Date.now() } }; msgs.push(row); return row; } });
+  };
+}
+addEventListener("keydown", e => { if (e.key === "Escape") { const m = $("#modal"); m.hidden = true; m.innerHTML = ""; } });
+$("#modal").addEventListener("click", e => { if (e.target.id === "modal") { e.target.hidden = true; e.target.innerHTML = ""; } });
 
 /* ---------- Profile ---------- */
 function profileHtml() {
   const f = (n, v, area) => `<label><span>${t(n)}</span>${area ? `<textarea name="${n}" rows="3">${esc(v)}</textarea>` : `<input name="${n}" value="${esc(v)}">`}</label>`;
   return `<ul class="group info"><li><span>${t("name")}</span><b>${esc(me.name)}</b></li><li><span>${t("id")}</span><b>${esc(me.loginId)}</b></li>${me.email ? `<li><span>${t("email")}</span><b>${esc(me.email)}</b></li>` : ""}</ul>
     <p class="sub">${t("mine")}</p>
-    <form id="pf" class="group form" novalidate>${f("phone", me.phone)}${f("location", me.location)}${f("about", me.about, true)}</form>
+    <form id="pf" class="group form" novalidate>${f("phone", me.phone)}${f("location", me.location)}${f("about", me.about, true)}
+      <label><span>${t("introVideo")}</span><input name="introVideo" placeholder="https://" inputmode="url" autocapitalize="none" value="${esc(tp.introVideo)}"></label></form>
+    <p class="note">${t("teachProfile")}. ${t("introHelp")}</p>
     <button class="btn wide" id="ps">${t("save")}</button>
     <p class="sub">${t("pw")}</p>
     <form id="pwf" class="group form" novalidate>
@@ -241,7 +313,11 @@ function profileHtml() {
 function bindProfile() {
   $("#ps").onclick = guard(async () => {
     const f = $("#pf").elements, d = { phone: f.phone.value.trim(), location: f.location.value.trim(), about: f.about.value.trim() };
-    await db.collection("users").doc(me.id).update({ ...d, updatedAt: FV.serverTimestamp() }); Object.assign(me, d); toast(t("saved"));
+    if (f.introVideo.value.trim() && !safeUrl(f.introVideo.value)) return toast(t("badUrl"));
+    const prof = { name: me.name, about: d.about.slice(0, 1000), introVideo: safeUrl(f.introVideo.value), updatedAt: FV.serverTimestamp() };
+    await db.collection("users").doc(me.id).update({ ...d, updatedAt: FV.serverTimestamp() });
+    await db.collection("teacherProfiles").doc(me.id).set(prof);   // the part your students can see
+    Object.assign(me, d); tp = prof; toast(t("saved"));
   });
   $("#pws").onclick = async () => {
     const f = $("#pwf").elements, u = auth.currentUser;
