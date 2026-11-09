@@ -90,7 +90,7 @@ function renderLang() {
     const p = DATA.programs.find(x => x.id === s.programId);
     return `<li class="day">
       <span class="d">${DAYS[lang][s.day]}</span>
-      <span class="c">${esc(p ? p[lang] : "")}${s.label ? " · " + esc(s.label) : ""}<small>${esc(s["venue_" + lang])}</small></span>
+      <span class="c">${esc(p ? p[lang] : "")}${s.label ? " · " + esc(s.label) : ""}<small>${esc(s["venue_" + lang])}${s.level ? " · " + esc(levelText(s.level, lang)) : ""}</small></span>
       <span class="tm">${esc(s.time)}</span>
     </li>`; }).join("") : `<li class="empty">${T[lang].sched_none}</li>`;
 
