@@ -7,7 +7,7 @@
 const LINKS = {
   fb: "https://www.facebook.com/CLCburmese",
   yt: "https://youtube.com/@circle-edu-mm?si=1MOFKR3IR7KA-s1F",
-  tt: ""   // paste your TikTok link here; the link stays hidden while this is empty
+  tt: "https://www.tiktok.com/@circle.edu.mm"  
 };
 
 const DATA = {
@@ -29,7 +29,7 @@ const T = {
     cta_enrol:"Enrol now", cta_programs:"See programs",
     about_h:"About CLC",
     about_p:"Circle Learning Centre began in 2021 as a Facebook page. Since then, volunteer teachers have helped youths and adults who struggle with English to speak with confidence.",
-    f1_k:"Started", f1_v:"2021", f2_k:"Teachers", f2_v:"Volunteers", f3_k:"Who we serve", f3_v:"Myanmar youths and adults",
+    f1_k:"Founded", f1_v:"2021", f2_k:"Founder", f2_v:"Mr. Peter", f3_k:"Our Mission", f3_v:"All Burmese English learners must learn English affordably",
     prog_h:"Programs", sched_h:"Class schedule",
     sched_note:"Times may change – please check before you join.", sched_none:"The schedule will be posted soon.", dashboard:"Dashboard", portal:"My classes",
     enrol_h:"Enrol in a class",
@@ -50,7 +50,7 @@ const T = {
     cta_enrol:"စာရင်းသွင်းမည်", cta_programs:"သင်တန်းများကြည့်မည်",
     about_h:"CLC အကြောင်း",
     about_p:"Circle Learning Centre ကို ၂၀၂၁ ခုနှစ်တွင် Facebook စာမျက်နှာအဖြစ် စတင်ခဲ့ပါသည်။ စေတနာ့ဝန်ထမ်း ဆရာများက အင်္ဂလိပ်စာ အခက်အခဲရှိသော လူငယ်နှင့် လူကြီးများ ယုံကြည်မှုရှိရှိ စကားပြောနိုင်လာစေရန် ကူညီခဲ့ကြသည်။",
-    f1_k:"စတင်ခဲ့သည်", f1_v:"၂၀၂၁", f2_k:"ဆရာများ", f2_v:"စေတနာ့ဝန်ထမ်းများ", f3_k:"ဝန်ဆောင်မှုပေးသူများ", f3_v:"မြန်မာလူငယ်နှင့် လူကြီးများ",
+    f1_k:"စတင်တည်ထောင်ချိန်", f1_v:"၂၀၂၁", f2_k:"တည်ထောင်သူ", f2_v:"ဆရာပီတာ", f3_k:"ရည်ရွယ်ချက်", f3_v:"အင်္ဂလိပ်စာလေ့လာလိုသော မြန်မာနိုင်ငံသားတိုင်း အဖိုးအခနည်းနည်းဖြင့် အင်္ဂလိပ်စာတတ်ရမည်။",
     prog_h:"သင်တန်းများ", sched_h:"အတန်း အချိန်ဇယား",
     sched_note:"အချိန်များ ပြောင်းလဲနိုင်ပါသည်။ မတက်ခင် ပြန်လည်စစ်ဆေးပါ။", sched_none:"အချိန်ဇယားကို မကြာမီ ကြေညာပါမည်။", dashboard:"Dashboard", portal:"ကျွန်ုပ်၏ အတန်းများ",
     enrol_h:"သင်တန်း စာရင်းသွင်းရန်",
@@ -86,12 +86,14 @@ function renderLang() {
       <span class="t"><b>${esc(p[lang])}</b><small>${esc(p[lang + "_d"])}</small></span>
     </li>`).join("");
 
-  $("#scheduleList").innerHTML = DATA.schedule.length ? DATA.schedule.map(s => {
-    const p = DATA.programs.find(x => x.id === s.programId);
+  const slots = DATA.schedule.flatMap(s => sessionsOf(s).map(x => ({ s, x })))
+    .sort((a, b) => a.x.day - b.x.day || String(a.x.start || a.x.time || "").localeCompare(String(b.x.start || b.x.time || "")));
+  $("#scheduleList").innerHTML = slots.length ? slots.map(({ s, x }) => {
+    const p = DATA.programs.find(y => y.id === s.programId);
     return `<li class="day">
-      <span class="d">${DAYS[lang][s.day]}</span>
-      <span class="c">${esc(p ? p[lang] : "")}${s.label ? " · " + esc(s.label) : ""}<small>${esc(s["venue_" + lang])}${s.level ? " · " + esc(levelText(s.level, lang)) : ""}</small></span>
-      <span class="tm">${esc(s.time)}</span>
+      <span class="d">${DAYS[lang][x.day]}</span>
+      <span class="c">${esc(p ? p[lang] : "")}${s.label ? " · " + esc(s.label) : ""}<small>${esc(s["venue_" + lang])}${s.level ? " · " + esc(levelText(s.level, lang)) : ""}</small><small>${esc(tzLabel(s.tz || DEFAULT_TZ))}</small></span>
+      <span class="tm">${esc(sessionTime(x))}</span>
     </li>`; }).join("") : `<li class="empty">${T[lang].sched_none}</li>`;
 
   const sel = $("#courseSelect"), keep = sel.value;
@@ -158,7 +160,7 @@ async function loadContent() {
   try {
     const [pr, sc] = await Promise.all([db.collection("programs").orderBy("order").get(), db.collection("publicSchedule").get()]);
     if (!pr.empty) DATA.programs = pr.docs.map(d => ({ id: d.id, ...d.data() }));
-    DATA.schedule = sc.docs.map(d => d.data()).sort((a, b) => a.day - b.day || String(a.time).localeCompare(String(b.time)));
+    DATA.schedule = sc.docs.map(d => d.data());
     renderLang();
   } catch (e) { console.warn("Could not load site content:", e); }
 }
