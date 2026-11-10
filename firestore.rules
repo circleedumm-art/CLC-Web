@@ -23,11 +23,11 @@ service cloud.firestore {
     }
     // Teachers may change these fields on their own classes (links stay private to the class).
     function classFieldsOnly() {
-      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['day', 'time', 'venue_en', 'venue_my', 'level', 'telegramUrl', 'zoomUrl', 'updatedAt']);
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['day', 'time', 'sessions', 'tz', 'venue_en', 'venue_my', 'level', 'telegramUrl', 'zoomUrl', 'updatedAt']);
     }
     // Only these fields are ever public.
     function publicFieldsOnly() {
-      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['day', 'time', 'venue_en', 'venue_my', 'level']);
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['day', 'time', 'sessions', 'tz', 'venue_en', 'venue_my', 'level']);
     }
     function httpsOrEmpty(v) { return v == '' || (v is string && v.matches('^https://.{3,500}$')); }
 
