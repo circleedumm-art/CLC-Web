@@ -86,14 +86,99 @@ function bindReportBlock(db, me, t, reports, redraw, toast) {
   };
 }
 
+/* ---------- Schedule: up to 3 weekly sessions per class, plus a time zone ---------- */
+const DEFAULT_TZ = "Asia/Yangon";   // classes saved before time zones existed are treated as Myanmar Time
+const TZ_LIST = [["Asia/Yangon", "Myanmar Time"], ["Asia/Bangkok", "Thailand"], ["Asia/Jakarta", "Indonesia (WIB)"], ["Asia/Singapore", "Singapore / Malaysia"],
+  ["Asia/Kolkata", "India"], ["Europe/Prague", "Central Europe"], ["Europe/London", "United Kingdom"], ["America/New_York", "US Eastern"], ["UTC", "Universal Time"]];
+const fmt12 = hm => { const [h, m] = String(hm).split(":").map(Number); return isNaN(h) ? "" : `${((h + 11) % 12) + 1}:${String(m || 0).padStart(2, "0")} ${h >= 12 ? "PM" : "AM"}`; };
+// Old classes have a single `day` and `time` text; new ones have `sessions` [{day, start, end}].
+function sessionsOf(c) {
+  const list = Array.isArray(c.sessions) ? c.sessions.filter(s => Number.isInteger(s.day) && s.day >= 0 && s.day <= 6) : [];
+  if (list.length) return list.slice().sort((a, b) => a.day - b.day || String(a.start || "").localeCompare(String(b.start || "")));
+  return Number.isInteger(c.day) ? [{ day: c.day, time: c.time }] : [];
+}
+const sessionTime = s => s.start && s.end ? `${fmt12(s.start)} – ${fmt12(s.end)}` : (s.time || "");
+const firstKey = c => { const s = sessionsOf(c)[0]; return s ? s.day * 10000 + (parseInt(String(s.start || "0:0").replace(":", ""), 10) || 0) : 99999; };
+const scheduleLine = (c, days) => sessionsOf(c).map(s => `${days[s.day]} ${sessionTime(s)}`.trim()).join(" · ");
+
+function offsetMin(tz, d) {   // minutes that `tz` is ahead of UTC at instant d
+  const p = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: tz, hourCycle: "h23", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric" })
+    .formatToParts(d).filter(x => x.type !== "literal").map(x => [x.type, +x.value]));
+  return Math.round((Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second) - Math.floor(d.getTime() / 1000) * 1000) / 60000);
+}
+const offsetText = m => { const a = Math.abs(m), h = Math.floor(a / 60), mi = a % 60; return "UTC" + (m === 0 ? "" : (m < 0 ? "-" : "+") + h + (mi ? ":" + String(mi).padStart(2, "0") : "")); };
+const tzLabel = tz => { const n = (TZ_LIST.find(x => x[0] === tz) || [tz, tz])[1]; try { return `${n} (${offsetText(offsetMin(tz, new Date()))})`; } catch { return n; } };
+const tzOptions = sel => TZ_LIST.map(([v]) => `<option value="${v}" ${v === (sel || DEFAULT_TZ) ? "selected" : ""}>${_esc(tzLabel(v))}</option>`).join("");
+
+const WD = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const wdIndex = (tz, d) => WD.indexOf(new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short" }).format(d));
+function instantFor(tz, day, hm) {   // the next real moment when `day` + `hm` happens in `tz`
+  const [H, M] = hm.split(":").map(Number), now = new Date();
+  for (let k = 0; k < 8; k++) {
+    const probe = new Date(now.getTime() + k * 864e5); if (wdIndex(tz, probe) !== day) continue;
+    const p = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: tz, year: "numeric", month: "numeric", day: "numeric" }).formatToParts(probe).filter(x => x.type !== "literal").map(x => [x.type, +x.value]));
+    const base = Date.UTC(p.year, p.month - 1, p.day, H, M);
+    let t = base - offsetMin(tz, new Date(base)) * 60000; t = base - offsetMin(tz, new Date(t)) * 60000;
+    return new Date(t);
+  }
+  return null;
+}
+// The same session in the viewer's own time zone, or null when it would look the same.
+function localSession(s, tz, myTz) {
+  try {
+    myTz = myTz || Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (!s.start || !s.end || !myTz || myTz === tz) return null;
+    const st = instantFor(tz, s.day, s.start); if (!st || offsetMin(tz, st) === offsetMin(myTz, st)) return null;
+    const [h1, m1] = s.start.split(":").map(Number), [h2, m2] = s.end.split(":").map(Number);
+    let dur = (h2 * 60 + m2) - (h1 * 60 + m1); if (dur <= 0) dur += 1440;
+    const hm = d => new Intl.DateTimeFormat("en-GB", { timeZone: myTz, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(d);
+    return { day: wdIndex(myTz, st), start: hm(st), end: hm(new Date(st.getTime() + dur * 60000)), tz: myTz, offset: offsetText(offsetMin(myTz, st)) };
+  } catch { return null; }
+}
+
+// Form fields for up to three sessions, and reading them back.
+function sessionFields(sessions, days, L) {
+  return [0, 1, 2].map(i => {
+    const s = sessions[i] || {};
+    const options = (i ? `<option value="">${_esc(L.none)}</option>` : "") + days.map((d, k) => `<option value="${k}" ${s.day === k || (i === 0 && s.day === undefined && k === 0) ? "selected" : ""}>${_esc(d)}</option>`).join("");
+    return `<label class="sess"><span>${_esc(L.session)} ${i + 1}${i ? ` (${_esc(L.optional)})` : ""}</span><select name="sd${i}">${options}</select>
+      <input type="time" name="ss${i}" value="${_esc(s.start || "")}"><input type="time" name="se${i}" value="${_esc(s.end || "")}"></label>`;
+  }).join("");
+}
+function readSessions(f, L) {
+  const list = [];
+  for (let i = 0; i < 3; i++) {
+    const d = f["sd" + i].value, s = f["ss" + i].value, e = f["se" + i].value;
+    if (i > 0 && d === "") continue;
+    if (d === "" || !s || !e) return { error: L.needTimes };
+    if (s === e) return { error: L.sameTime };
+    list.push({ day: Number(d), start: s, end: e });
+  }
+  list.sort((a, b) => a.day - b.day || a.start.localeCompare(b.start));
+  return { list };
+}
+// Saved with the class; day/time keep the first session for older code.
+const scheduleFields = (list, tz) => ({ sessions: list, tz, day: list[0].day, time: sessionTime(list[0]) });
+
+/* ---------- Grades as percentages ---------- */
+const pctOf = g => g.max ? Math.round(g.score / g.max * 100) : 0;
+const gradePct = list => { const m = list.reduce((a, g) => a + (Number(g.max) || 0), 0), s = list.reduce((a, g) => a + (Number(g.score) || 0), 0); return m > 0 ? Math.round(s / m * 100) : null; };
+
+/* ---------- Certificate signature ---------- */
+const SIGNER = { name: "Min Khant Kyaw @ Peter", short: "Min Khant Kyaw", title: { en: "Founder & Academic Head", my: "တည်ထောင်သူနှင့် ပညာရေးဆိုင်ရာ ဦးဆောင်သူ" } };
+const signatureBlock = lang => `<div class="sign"><img src="signature.png" alt="" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'sig-text',textContent:'${SIGNER.short}'}))">
+  <div class="line"></div><b>${_esc(SIGNER.name)}</b><span>${_esc(SIGNER.title[lang] || SIGNER.title.en)}</span><span>Circle Learning Centre</span></div>`;
+
 /* ---------- Strings used by more than one page ---------- */
 const COMMON_T = {
   en: { noMsgs: "No messages yet.", typeMsg: "Write a message…", send: "Send", close: "Close", fail: "Something went wrong. Try again.",
     reportTitle: "Report to admin", reportHelp: "Send a problem, suggestion or question to the CLC admin. This is not instant chat – the admin replies when available.",
     subject: "Subject", message: "Message", sendReport: "Send report", noReports: "No reports yet.", reportSent: "Report sent", adminReply: "Admin reply", resolved: "Resolved", open: "Open",
-    tg: "Telegram group", zoom: "Join Zoom", materials: "Class materials", level: "Level", present: "Present", late: "Late", absent: "Absent", excused: "Excused", attendance: "Attendance", teacher: "Teacher" },
+    session: "Session", optional: "optional", none: "— none —", needTimes: "Each session needs a day, a start time and an end time.", sameTime: "Start and end time cannot be the same.",
+    tz: "Time zone", yourTime: "Your time", overall: "Overall", gradeLbl: "Grade", tg: "Telegram group", zoom: "Join Zoom", materials: "Class materials", level: "Level", present: "Present", late: "Late", absent: "Absent", excused: "Excused", attendance: "Attendance", teacher: "Teacher" },
   my: { noMsgs: "မက်ဆေ့ချ် မရှိသေးပါ။", typeMsg: "မက်ဆေ့ချ် ရေးပါ…", send: "ပို့မည်", close: "ပိတ်မည်", fail: "တစ်ခုခု မှားသွားပါသည်။ ပြန်ကြိုးစားပါ။",
     reportTitle: "အက်ဒမင်သို့ အစီရင်ခံရန်", reportHelp: "ပြဿနာ၊ အကြံပြုချက် သို့မဟုတ် မေးခွန်းကို CLC အက်ဒမင်ထံ ပို့ပါ။ ချက်ချင်း စကားပြောခြင်း မဟုတ်ပါ၊ အက်ဒမင် အားလပ်သည့်အခါ ပြန်ကြားပါမည်။",
     subject: "ခေါင်းစဉ်", message: "စာသား", sendReport: "ပို့မည်", noReports: "ပို့ထားသော အစီရင်ခံစာ မရှိသေးပါ။", reportSent: "ပို့ပြီးပါပြီ", adminReply: "အက်ဒမင် အဖြေ", resolved: "ဖြေရှင်းပြီး", open: "စောင့်ဆိုင်းနေ",
-    tg: "Telegram အဖွဲ့", zoom: "Zoom ဝင်ရန်", materials: "သင်ခန်းစာ ဖိုင်များ", level: "အဆင့်", present: "တက်ရောက်", late: "နောက်ကျ", absent: "ပျက်ကွက်", excused: "ခွင့်ယူ", attendance: "တက်ရောက်မှု", teacher: "ဆရာ" }
+    session: "အတန်းချိန်", optional: "ရွေးချယ်ခွင့်", none: "— မရှိ —", needTimes: "အတန်းချိန်တိုင်းတွင် နေ့၊ စတင်ချိန်နှင့် ပြီးဆုံးချိန် လိုအပ်ပါသည်။", sameTime: "စတင်ချိန်နှင့် ပြီးဆုံးချိန် မတူရပါ။",
+    tz: "အချိန်ဇုန်", yourTime: "သင့်ဒေသအချိန်", overall: "စုစုပေါင်း", gradeLbl: "အမှတ်", tg: "Telegram အဖွဲ့", zoom: "Zoom ဝင်ရန်", materials: "သင်ခန်းစာ ဖိုင်များ", level: "အဆင့်", present: "တက်ရောက်", late: "နောက်ကျ", absent: "ပျက်ကွက်", excused: "ခွင့်ယူ", attendance: "တက်ရောက်မှု", teacher: "ဆရာ" }
 };
