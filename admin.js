@@ -41,6 +41,7 @@ function start() {
 const mail = (to, subject, body) => `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 const when = x => x && x.toDate ? x.toDate().toLocaleDateString() : "";
 
+const SESS_L = { session: "Session", optional: "optional", none: "— none —", needTimes: "Each session needs a day, a start time and an end time.", sameTime: "Start and end time cannot be the same." };
 const VIEWS = { enrolments: "Enrolments", students: "Students", teachers: "Teachers", classes: "Classes", programs: "Programs", reports: "Reports" };
 const ADD = { students: "Add student", teachers: "Add teacher", classes: "Add class", programs: "Add program" };
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -86,11 +87,12 @@ function render() {
   } else if (v === "classes") {
     empty = programs.length ? "No classes yet. Tap “Add class” to create one." : "Add at least one program first (Programs tab), then create classes.";
     html = classes.filter(c => hit({ name: progName(c.programId) + " " + (c.label || ""), email: c.teacherName }))
-      .sort((a, b) => a.day - b.day || String(a.time).localeCompare(String(b.time))).map(c => {
+      .sort((a, b) => firstKey(a) - firstKey(b)).map(c => {
         const n = members.filter(m => m.classId === c.id).length, st = c.status || "active";
         const btn = (act, label, cls = "ghost") => `<button class="btn small ${cls}" data-act="${act}" data-id="${c.id}">${label}</button>`;
         return `<li class="item"><div class="grow"><b>${esc(progName(c.programId))}${c.label ? " · " + esc(c.label) : ""}</b>
-          <small>${DAYS[c.day] || ""} ${esc(c.time)} · ${esc(c.teacherName || "No teacher yet")}${c.level ? " · " + esc(levelText(c.level, "en")) : ""}</small>
+          <small>${esc(scheduleLine(c, DAYS))} · ${esc(tzLabel(c.tz || DEFAULT_TZ))}</small>
+          <small>${esc(c.teacherName || "No teacher yet")}${c.level ? " · " + esc(levelText(c.level, "en")) : ""}</small>
           <small>${safeUrl(c.zoomUrl) ? "Zoom ✓" : "Zoom –"} · ${safeUrl(c.telegramUrl) ? "Telegram ✓" : "Telegram –"}</small>
           <small>${n} student${n === 1 ? "" : "s"}${c.public ? " · shown on website" : " · not on website"}</small></div>
           <span class="pill s-${st === "completed" ? "enrolled" : "active"}">${esc(st)}</span>
@@ -246,8 +248,8 @@ function openClass(c = {}) {
       <label><span>Program</span><select name="programId">${opts(programs.map(p => [p.id, p.en]), c.programId)}</select></label>
       <label><span>Group name</span><input name="label" placeholder="e.g. Evening A" value="${esc(c.label)}"></label>
       <label><span>Teacher</span><select name="teacherId">${opts([["", "— none yet —"], ...teachers.map(t => [t.id, `${t.name} (${t.loginId})`])], c.teacherId)}</select></label>
-      <label><span>Day</span><select name="day">${opts(DAYS.map((d, i) => [i, d]), c.day ?? 0)}</select></label>
-      <label><span>Time</span><input name="time" placeholder="7:00 – 8:00 PM" value="${esc(c.time)}"></label>
+      ${sessionFields(sessionsOf(c), DAYS, SESS_L)}
+      <label><span>Time zone</span><select name="tz">${tzOptions(c.tz)}</select></label>
       <label><span>Place (English)</span><input name="venue_en" placeholder="Online via Zoom" value="${esc(c.venue_en)}"></label>
       <label><span>Place (မြန်မာ)</span><input name="venue_my" value="${esc(c.venue_my)}"></label>
       <label><span>Level</span><select name="level">${opts([["", "— not set —"], ...LEVELS.map(l => [l, levelText(l, "en") + " · " + LEVEL_NAME.my[l]])], c.level || "")}</select></label>
@@ -258,16 +260,16 @@ function openClass(c = {}) {
     </form><button class="btn wide" id="mSave">Save</button>`);
   $("#mSave").onclick = async () => {
     const f = $("#mForm").elements, t = users.find(u => u.id === f.teacherId.value);
+    const sr = readSessions(f, SESS_L); if (sr.error) return mErr(sr.error);
     const d = { programId: f.programId.value, label: f.label.value.trim(), teacherId: f.teacherId.value, teacherName: t ? t.name : "",
-      day: Number(f.day.value), time: f.time.value.trim(), venue_en: f.venue_en.value.trim(), venue_my: f.venue_my.value.trim() || f.venue_en.value.trim(),
+      ...scheduleFields(sr.list, f.tz.value), venue_en: f.venue_en.value.trim(), venue_my: f.venue_my.value.trim() || f.venue_en.value.trim(),
       status: f.status.value, public: f.public.value === "yes", level: f.level.value, telegramUrl: safeUrl(f.telegramUrl.value), zoomUrl: safeUrl(f.zoomUrl.value) };
     if ((f.telegramUrl.value.trim() && !d.telegramUrl) || (f.zoomUrl.value.trim() && !d.zoomUrl)) return mErr("Links must start with https://");
-    if (!d.time) return mErr("Please enter the class time.");
     const ref = c.id ? db.collection("classes").doc(c.id) : db.collection("classes").doc(), pub = db.collection("publicSchedule").doc(ref.id);
     const b = db.batch();
     b.set(ref, { ...d, ...(c.id ? {} : { createdAt: firebase.firestore.FieldValue.serverTimestamp() }) }, { merge: true });
     // Only non-sensitive fields go to the public schedule (no teacher or student information).
-    if (d.public && d.status === "active") b.set(pub, { programId: d.programId, label: d.label, day: d.day, time: d.time, venue_en: d.venue_en, venue_my: d.venue_my, level: d.level });
+    if (d.public && d.status === "active") b.set(pub, { programId: d.programId, label: d.label, day: d.day, time: d.time, sessions: d.sessions, tz: d.tz, venue_en: d.venue_en, venue_my: d.venue_my, level: d.level });
     else b.delete(pub);
     try { await b.commit(); closeModal(); toast("Class saved"); } catch (e) { console.error(e); mErr("Could not save. Try again."); }
   };
@@ -329,7 +331,7 @@ async function openRecords(c) {
       ${m.status === "completed" ? rowBtn("reopen", m.id, "Reopen", "ghost") : rowBtn("complete", m.id, "Mark completed", "")}</li>`).join("") || none("No students in this class yet.")}</ul>
 
     <p class="sub">Grades</p>
-    <ul class="group">${grades.map(g => `<li class="item"><div class="grow"><b>${esc(g.studentName)} · ${esc(g.title)}</b><small>${esc(g.score)} / ${esc(g.max)}${g.comment ? " · " + esc(g.comment) : ""}</small></div>${rowBtn("delGrade", g.id, "Delete")}</li>`).join("") || none("No grades yet.")}</ul>
+    <ul class="group">${grades.map(g => `<li class="item"><div class="grow"><b>${esc(g.studentName)} · ${esc(g.title)}</b><small>${esc(g.score)} / ${esc(g.max)} (${pctOf(g)}%)${g.comment ? " · " + esc(g.comment) : ""}</small></div>${rowBtn("delGrade", g.id, "Delete")}</li>`).join("") || none("No grades yet.")}</ul>
     ${mem.length ? `<form id="grForm" class="group form" style="margin-top:10px" novalidate>
       <label><span>Student</span><select name="student">${opts(mem.map(m => [m.studentId, `${m.studentName} (${m.loginId})`]), "")}</select></label>
       <label><span>Title</span><input name="title" placeholder="Midterm exam"></label>
@@ -382,7 +384,7 @@ async function openPreview(u) {
     const entries = en.docs.map(d => d.data());
     const mine = members.filter(m => m.studentId === u.id).map(m => ({ m, c: classes.find(x => x.id === m.classId) })).filter(r => r.c);
     extra = `<p class="sub">Classes</p><ul class="group">${mine.map(({ m, c }) => { const s = attStats(entries.filter(x => x.classId === c.id).map(x => x.status));
-      return `<li class="item"><div class="grow"><b>${esc(progName(c.programId))}${c.label ? " · " + esc(c.label) : ""}</b><small>${DAYS[c.day] || ""} ${esc(c.time)} · ${esc(c.teacherName || "No teacher")}</small>
+      return `<li class="item"><div class="grow"><b>${esc(progName(c.programId))}${c.label ? " · " + esc(c.label) : ""}</b><small>${esc(scheduleLine(c, DAYS))} · ${esc(c.teacherName || "No teacher")}</small>
         <small>Attendance: ${s.pct === null ? "no records yet" : s.pct + "% (" + s.present + " present, " + s.late + " late, " + s.absent + " absent, " + s.excused + " excused)"}</small></div>
         <span class="pill s-${m.status === "completed" ? "enrolled" : "active"}">${esc(m.status || "enrolled")}</span></li>`; }).join("") || `<li class="empty"><div>Not in any class yet.</div></li>`}</ul>`;
   } else {
@@ -391,7 +393,7 @@ async function openPreview(u) {
     const mine = classes.filter(c => c.teacherId === u.id);
     extra = `<p class="sub">Intro video</p>${safeUrl(p.introVideo) ? videoBlock(p.introVideo, "▶ Open video") : `<p class="note">No intro video yet.</p>`}
       <p class="sub">Classes taught</p><ul class="group">${mine.map(c => { const n = members.filter(m => m.classId === c.id).length;
-      return `<li class="item"><div class="grow"><b>${esc(progName(c.programId))}${c.label ? " · " + esc(c.label) : ""}</b><small>${DAYS[c.day] || ""} ${esc(c.time)}${c.level ? " · " + esc(levelText(c.level, "en")) : ""}</small><small>${n} student${n === 1 ? "" : "s"}</small></div></li>`; }).join("") || `<li class="empty"><div>No classes assigned.</div></li>`}</ul>`;
+      return `<li class="item"><div class="grow"><b>${esc(progName(c.programId))}${c.label ? " · " + esc(c.label) : ""}</b><small>${esc(scheduleLine(c, DAYS))}${c.level ? " · " + esc(levelText(c.level, "en")) : ""}</small><small>${n} student${n === 1 ? "" : "s"}</small></div></li>`; }).join("") || `<li class="empty"><div>No classes assigned.</div></li>`}</ul>`;
   }
   sheet(`${u.role === "teacher" ? "Teacher" : "Student"} profile`, info + extra, "Close");
 }
