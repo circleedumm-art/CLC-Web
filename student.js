@@ -88,7 +88,9 @@ const cTitle = c => { const p = programs.find(x => x.id === c.programId); return
 const fmt = d => { const x = d && d.toDate ? d.toDate() : new Date(String(d).length === 10 ? d + "T00:00" : d); return isNaN(x) ? "" : x.toLocaleDateString(lang === "my" ? "my-MM" : "en-GB", { day: "numeric", month: "short", year: "numeric" }); };
 const li = inner => `<li class="item">${inner}</li>`;
 const group = (h, items, e) => `${h ? `<p class="sub">${h}</p>` : ""}<ul class="group">${items.length ? items.join("") : `<li class="empty"><div>${e}</div></li>`}</ul>`;
-const byDay = (a, b) => a.c.day - b.c.day || String(a.c.time).localeCompare(String(b.c.time));
+const byDay = (a, b) => firstKey(a.c) - firstKey(b.c);
+// The session in the student's own time zone, shown only when it differs from the class time zone.
+const yourTime = (s, c) => { const l = localSession(s, c.tz || DEFAULT_TZ); return l ? `<small>${t("yourTime")}: ${DAYS[lang][l.day]} ${fmt12(l.start)} – ${fmt12(l.end)} (${l.offset})</small>` : ""; };
 const statsFor = cid => attStats(entries.filter(x => x.classId === cid).map(x => x.status));
 const modal = $("#modal");
 const closeModal = () => { modal.hidden = true; modal.innerHTML = ""; };
@@ -102,7 +104,7 @@ const VIEW = {
     const card = r => {
       const c = r.c, done = r.m.status === "completed", lv = levelText(c.level, lang), mats = materials.filter(x => x.classId === c.id);
       return `<p class="sub">${esc(cTitle(c))}</p><ul class="group">
-        ${li(`<div class="grow"><small>${DAYS[lang][c.day]} · ${esc(c.time)}</small>${c["venue_" + lang] ? `<small>${esc(c["venue_" + lang])}</small>` : ""}${done ? `<small>${t("completed")}: ${fmt(r.m.completedAt)}</small>` : ""}</div>${lv ? `<span class="pill s-enrolled">${esc(lv)}</span>` : ""}`)}
+        ${li(`<div class="grow"><small>${esc(scheduleLine(c, DAYS[lang]))}</small><small>${esc(tzLabel(c.tz || DEFAULT_TZ))}</small>${sessionsOf(c).map(x => yourTime(x, c)).join("")}${c["venue_" + lang] ? `<small>${esc(c["venue_" + lang])}</small>` : ""}${done ? `<small>${t("completed")}: ${fmt(r.m.completedAt)}</small>` : ""}</div>${lv ? `<span class="pill s-enrolled">${esc(lv)}</span>` : ""}`)}
         ${c.teacherId ? `<li class="item go" tabindex="0" data-teacher="${c.teacherId}"><div class="grow"><small>${t("teacher")}</small><b>${esc(c.teacherName || "")}</b></div></li>` : ""}
         ${!done && (safeUrl(c.telegramUrl) || safeUrl(c.zoomUrl)) ? li(`<div class="rowlinks">${linkBtn(c.telegramUrl, "✈️ " + t("tg"), "")}${linkBtn(c.zoomUrl, "🎥 " + t("zoom"), "")}</div>`) : ""}
         ${mats.map(m => li(`<div class="grow"><small>📎 ${t("material")}</small><b>${esc(m.title)}</b></div>${linkBtn(m.url, t("open"))}`)).join("")}</ul>`;
@@ -112,8 +114,10 @@ const VIEW = {
   },
   schedule() {
     const act = rows.filter(r => r.m.status !== "completed" && r.c.status !== "completed").sort(byDay);
-    const wk = act.map(r => `<li class="day"><span class="d">${DAYS[lang][r.c.day]}</span><span class="c">${esc(cTitle(r.c))}<small>${esc(r.c["venue_" + lang] || "")}</small>
-      ${safeUrl(r.c.zoomUrl) ? `<div class="rowlinks" style="margin-top:6px">${linkBtn(r.c.zoomUrl, "🎥 " + t("zoom"), "")}</div>` : ""}</span><span class="tm">${esc(r.c.time)}</span></li>`);
+    const wk = act.flatMap(r => sessionsOf(r.c).map(s => ({ r, s })))
+      .sort((a, b) => a.s.day - b.s.day || String(a.s.start || a.s.time || "").localeCompare(String(b.s.start || b.s.time || "")))
+      .map(({ r, s }) => `<li class="day"><span class="d">${DAYS[lang][s.day]}</span><span class="c">${esc(cTitle(r.c))}<small>${esc(r.c["venue_" + lang] || "")}</small><small>${esc(tzLabel(r.c.tz || DEFAULT_TZ))}</small>${yourTime(s, r.c)}
+      ${safeUrl(r.c.zoomUrl) ? `<div class="rowlinks" style="margin-top:6px">${linkBtn(r.c.zoomUrl, "🎥 " + t("zoom"), "")}</div>` : ""}</span><span class="tm">${esc(sessionTime(s))}</span></li>`);
     const today = new Date().toLocaleDateString("en-CA");
     const ex = exams.slice().sort((a, b) => String(a.date).localeCompare(String(b.date))).map(e => {
       const r = rows.find(x => x.c.id === e.classId);
@@ -130,8 +134,8 @@ const VIEW = {
     });
     const gb = rows.map(r => {
       const g = grades.filter(x => x.classId === r.c.id);
-      return g.length ? group(esc(cTitle(r.c)), g.map(x => li(`<div class="grow"><b>${esc(x.title)}</b>${x.comment ? `<small>${esc(x.comment)}</small>` : ""}</div>
-        <b>${esc(x.score)} / ${esc(x.max)}</b><span class="pill">${x.max ? Math.round(x.score / x.max * 100) : 0}%</span>`)), "") : "";
+      return g.length ? group(esc(cTitle(r.c)), [li(`<div class="grow"><b>${t("overall")}</b>${pctBar(gradePct(g))}</div><b>${gradePct(g)}%</b>`), ...g.map(x => li(`<div class="grow"><b>${esc(x.title)}</b>${x.comment ? `<small>${esc(x.comment)}</small>` : ""}</div>
+        <b>${esc(x.score)} / ${esc(x.max)}</b><span class="pill">${pctOf(x)}%</span>`))], "") : "";
     }).join("");
     const certs = rows.filter(r => r.m.status === "completed").map(r => li(`<div class="grow"><b>${esc(cTitle(r.c))}</b><small>${fmt(r.m.completedAt)}</small></div>
       <button class="btn small" data-cert="${r.m.id}">${t("view")}</button>`));
@@ -192,11 +196,11 @@ $("#view").addEventListener("click", e => {
   }
   if (cb) {
     const r = rows.find(x => x.m.id === cb.dataset.cert); if (!r) return;
-    const s = statsFor(r.c.id);
+    const s = statsFor(r.c.id), gp = gradePct(grades.filter(x => x.classId === r.c.id));
     showSheet(`<div class="cert"><img src="logo.png" alt="" height="56" onerror="this.remove()"><h4>${t("cert")}</h4><p>${t("certify")}</p><h3>${esc(me.name)}</h3>
       <p>${t("done")}</p><h3>${esc(cTitle(r.c))}</h3>
-      <p class="meta">${t("attendance")}: ${s.pct === null ? "—" : s.pct + "%"}</p>
-      <p class="meta">${t("date")}: ${fmt(r.m.completedAt)} · ${t("no")}: ${esc(r.m.certNo || "—")}</p><p class="meta">Circle Learning Centre</p></div>
+      <p class="meta">${t("attendance")}: ${s.pct === null ? "—" : s.pct + "%"} · ${t("gradeLbl")}: ${gp === null ? "—" : gp + "%"}</p>
+      <p class="meta">${t("date")}: ${fmt(r.m.completedAt)} · ${t("no")}: ${esc(r.m.certNo || "—")}</p>${signatureBlock(lang)}</div>
       <button class="btn wide" id="prt">${t("print")}</button>`);
     $("#prt").onclick = () => print();
   }
