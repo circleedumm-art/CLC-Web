@@ -7,7 +7,7 @@
 const LINKS = {
   fb: "https://www.facebook.com/CLCburmese",
   yt: "https://youtube.com/@circle-edu-mm?si=1MOFKR3IR7KA-s1F",
-  tt: "https://www.tiktok.com/@circle.edu.mm"  
+  tt: "https://www.tiktok.com/@circle.edu.mm"   // paste your TikTok link here; the link stays hidden while this is empty
 };
 
 const DATA = {
@@ -29,7 +29,7 @@ const T = {
     cta_enrol:"Enrol now", cta_programs:"See programs",
     about_h:"About CLC",
     about_p:"Circle Learning Centre began in 2021 as a Facebook page. Since then, volunteer teachers have helped youths and adults who struggle with English to speak with confidence.",
-    f1_k:"Founded", f1_v:"2021", f2_k:"Founder", f2_v:"Mr. Peter", f3_k:"Our Mission", f3_v:"All Burmese English learners must learn English affordably",
+    f1_k:"Founded", f1_v:"2021", f2_k:"Founder", f2_v:"Mr. Peter", f3_k:"Who we serve", f3_v:"Myanmar youths and adults",
     prog_h:"Programs", sched_h:"Class schedule",
     sched_note:"Times may change – please check before you join.", sched_none:"The schedule will be posted soon.", dashboard:"Dashboard", portal:"My classes",
     enrol_h:"Enrol in a class",
@@ -46,11 +46,11 @@ const T = {
   my: {
     nav_about:"အကြောင်း", nav_programs:"သင်တန်းများ", nav_schedule:"အချိန်ဇယား", nav_enrol:"စာရင်းသွင်း", login:"ဝင်ရန်",
     hero_title:"အတူသင်ယူ၊ အတူတိုးတက်ကြမယ်။",
-    hero_sub:"မြန်မာလူငယ်များအတွက် အင်္ဂလိပ်စာနှင့် ဘဝစွမ်းရည် သင်ယူရေး၊ စေတနာ့ဝန်ထမ်း ဆရာများနှင့်အတူ။",
+    hero_sub:"အင်္ဂလိပ်စာ သင်ယူလိုသော မြန်မာနိုင်ငံသားတိုင်း အဖိုးအခ အသက်သာဆုံးနည်းလမ်းဖြင့် အင်္ဂလိပ်စာတတ်ရမည်။",
     cta_enrol:"စာရင်းသွင်းမည်", cta_programs:"သင်တန်းများကြည့်မည်",
     about_h:"CLC အကြောင်း",
     about_p:"Circle Learning Centre ကို ၂၀၂၁ ခုနှစ်တွင် Facebook စာမျက်နှာအဖြစ် စတင်ခဲ့ပါသည်။ စေတနာ့ဝန်ထမ်း ဆရာများက အင်္ဂလိပ်စာ အခက်အခဲရှိသော လူငယ်နှင့် လူကြီးများ ယုံကြည်မှုရှိရှိ စကားပြောနိုင်လာစေရန် ကူညီခဲ့ကြသည်။",
-    f1_k:"စတင်တည်ထောင်ချိန်", f1_v:"၂၀၂၁", f2_k:"တည်ထောင်သူ", f2_v:"ဆရာပီတာ", f3_k:"ရည်ရွယ်ချက်", f3_v:"အင်္ဂလိပ်စာလေ့လာလိုသော မြန်မာနိုင်ငံသားတိုင်း အဖိုးအခနည်းနည်းဖြင့် အင်္ဂလိပ်စာတတ်ရမည်။",
+    f1_k:"စတင်တည်ထောင်ချိန်", f1_v:"၂၀၂၁", f2_k:"စတင်တည်ထောင်သူ", f2_v:"ဆရာပီတာ", f3_k:"ဝန်ဆောင်မှုပေးသူများ", f3_v:"မြန်မာလူငယ်နှင့် လူကြီးများ",
     prog_h:"သင်တန်းများ", sched_h:"အတန်း အချိန်ဇယား",
     sched_note:"အချိန်များ ပြောင်းလဲနိုင်ပါသည်။ မတက်ခင် ပြန်လည်စစ်ဆေးပါ။", sched_none:"အချိန်ဇယားကို မကြာမီ ကြေညာပါမည်။", dashboard:"Dashboard", portal:"ကျွန်ုပ်၏ အတန်းများ",
     enrol_h:"သင်တန်း စာရင်းသွင်းရန်",
@@ -207,3 +207,12 @@ $("#logoutLink").onclick = e => { e.preventDefault(); if (auth) auth.signOut(); 
 });
 $("#yr").textContent = new Date().getFullYear();
 renderLang();
+
+/* ---------- Gentle reveal as sections scroll into view ---------- */
+(function () {
+  const els = $$("main section.wrap, footer.wrap");
+  document.documentElement.classList.add("js");
+  if (!("IntersectionObserver" in window)) { els.forEach(e => e.classList.add("in")); return; }
+  const io = new IntersectionObserver(list => list.forEach(x => { if (x.isIntersecting) { x.target.classList.add("in"); io.unobserve(x.target); } }), { threshold: 0.05 });
+  els.forEach(e => { e.classList.add("reveal"); io.observe(e); });
+})();
