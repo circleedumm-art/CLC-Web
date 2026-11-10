@@ -109,9 +109,9 @@ function render() {
   const c = v === "class" && classes.find(x => x.id === id);
   if (c) return renderClass(c, SUBS.includes(tab) ? tab : "att", token);
   $("#title").textContent = `${t("hi")}, ${first()}`;
-  $("#view").innerHTML = `<ul class="group">${classes.slice().sort((a, b) => a.day - b.day || String(a.time).localeCompare(String(b.time))).map(c => `
+  $("#view").innerHTML = `<ul class="group">${classes.slice().sort((a, b) => firstKey(a) - firstKey(b)).map(c => `
     <li class="item go" tabindex="0" data-go="${c.id}"><div class="grow"><b>${esc(cTitle(c))}</b>
-    <small>${DAYS[lang][c.day]} · ${esc(c.time)}${c["venue_" + lang] ? " · " + esc(c["venue_" + lang]) : ""}</small>
+    <small>${esc(scheduleLine(c, DAYS[lang]))} · ${esc(tzLabel(c.tz || DEFAULT_TZ))}</small>${c["venue_" + lang] ? `<small>${esc(c["venue_" + lang])}</small>` : ""}
     <small>${live(c).length} ${t("students")}</small></div><span class="pill s-${c.status === "completed" ? "enrolled" : "active"}">${t(c.status === "completed" ? "completed" : "active")}</span></li>`).join("") || empty(t("noClass"))}</ul>`;
 }
 addEventListener("hashchange", render);
@@ -127,6 +127,7 @@ async function renderClass(c, tab, token) {
   $$("[data-sub]").forEach(b => b.onclick = () => location.hash = `#class/${c.id}/${b.dataset.sub}`);
   BIND[tab](c, d);
 }
+const SLT = () => ({ session: t("session"), optional: t("optional"), none: t("none"), needTimes: t("needTimes"), sameTime: t("sameTime") });
 const SUBS = ["att", "grades", "exams", "mat", "info"];
 const guard = fn => async (...a) => { try { await fn(...a); } catch (e) { console.error(e); toast(t("fail")); } };
 
@@ -145,7 +146,7 @@ const BODY = {
   grades(c, d) {
     const m = mem(c);
     const list = d.grades.slice().sort((a, b) => (a.studentName || "").localeCompare(b.studentName || "")).map(g => `<li class="item"><div class="grow"><b>${esc(g.studentName)} · ${esc(g.title)}</b>
-      <small>${esc(g.score)} / ${esc(g.max)}${g.comment ? " · " + esc(g.comment) : ""}</small></div><button class="btn small danger" data-delg="${g.id}">${t("del")}</button></li>`).join("") || empty(t("noGrades"));
+      <small>${esc(g.score)} / ${esc(g.max)} (${pctOf(g)}%)${g.comment ? " · " + esc(g.comment) : ""}</small></div><button class="btn small danger" data-delg="${g.id}">${t("del")}</button></li>`).join("") || empty(t("noGrades"));
     return `<ul class="group" style="margin-top:14px">${list}</ul>${m.length ? `
       <form id="gf" class="group form" style="margin-top:14px" novalidate>
         <label><span>${t("student")}</span><select name="student">${opts(m.map(x => [x.studentId, `${x.studentName} (${x.loginId})`]), "")}</select></label>
@@ -174,8 +175,8 @@ const BODY = {
         <li><span>${t("status")}</span><b>${t(c.status === "completed" ? "completed" : "active")}</b></li>${c.level ? `<li><span>${t("levelLbl")}</span><b>${esc(levelText(c.level, lang))}</b></li>` : ""}</ul>
       <p class="sub">${t("changeTime")}</p>
       <form id="tf" class="group form" novalidate>
-        <label><span>${t("day")}</span><select name="day">${opts(DAYS[lang].map((x, i) => [i, x]), c.day)}</select></label>
-        <label><span>${t("time")}</span><input name="time" value="${esc(c.time)}"></label>
+        ${sessionFields(sessionsOf(c), DAYS[lang], SLT())}
+        <label><span>${t("tz")}</span><select name="tz">${tzOptions(c.tz)}</select></label>
         <label><span>${t("placeEn")}</span><input name="venue_en" value="${esc(c.venue_en)}"></label>
         <label><span>${t("placeMy")}</span><input name="venue_my" value="${esc(c.venue_my)}"></label>
         <label><span>${t("levelLbl")}</span><select name="level">${opts([["", t("noLevel")], ...LEVELS.map(l => [l, levelText(l, lang)])], c.level || "")}</select></label>
@@ -238,9 +239,9 @@ const BIND = {
   },
   info(c) {
     $("#tsave").onclick = guard(async () => {
-      const f = $("#tf").elements; if (!f.time.value.trim()) return toast(t("needTime"));
+      const f = $("#tf").elements, sr = readSessions(f, SLT()); if (sr.error) return toast(sr.error);
       if ((f.telegramUrl.value.trim() && !safeUrl(f.telegramUrl.value)) || (f.zoomUrl.value.trim() && !safeUrl(f.zoomUrl.value))) return toast(t("badUrl"));
-      const ch = { day: Number(f.day.value), time: f.time.value.trim(), venue_en: f.venue_en.value.trim(), venue_my: f.venue_my.value.trim() || f.venue_en.value.trim(), level: f.level.value };
+      const ch = { ...scheduleFields(sr.list, f.tz.value), venue_en: f.venue_en.value.trim(), venue_my: f.venue_my.value.trim() || f.venue_en.value.trim(), level: f.level.value };
       const priv = { telegramUrl: safeUrl(f.telegramUrl.value), zoomUrl: safeUrl(f.zoomUrl.value) };
       const b = db.batch();
       b.update(db.collection("classes").doc(c.id), { ...ch, ...priv, updatedAt: FV.serverTimestamp() });
