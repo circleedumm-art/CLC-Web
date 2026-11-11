@@ -33,6 +33,8 @@ function start() {
   db.collection("users").onSnapshot(s => { users = s.docs.map(d => ({ id: d.id, ...d.data() })); render(); }, fail);
   db.collection("programs").orderBy("order").onSnapshot(s => { programs = s.docs.map(d => ({ id: d.id, ...d.data() })); render(); }, fail);
   db.collection("classes").onSnapshot(s => { classes = s.docs.map(d => ({ id: d.id, ...d.data() })); render(); }, fail);
+  db.collection("reviews").onSnapshot(s => { reviews = s.docs.map(d => ({ id: d.id, ...d.data() })); render(); }, fail);
+  db.collection("siteContent").doc("guides").onSnapshot(d => { guides = d.exists ? d.data() : {}; render(); }, fail);
   db.collection("reports").onSnapshot(s => { reports = s.docs.map(d => ({ id: d.id, ...d.data() })); render(); }, fail);
   db.collection("memberships").onSnapshot(s => { members = s.docs.map(d => ({ id: d.id, ...d.data() })); render(); }, fail);
 }
@@ -42,17 +44,20 @@ const mail = (to, subject, body) => `mailto:${encodeURIComponent(to)}?subject=${
 const when = x => x && x.toDate ? x.toDate().toLocaleDateString() : "";
 
 const SESS_L = { session: "Session", optional: "optional", none: "— none —", needTimes: "Each session needs a day, a start time and an end time.", sameTime: "Start and end time cannot be the same." };
-const VIEWS = { enrolments: "Enrolments", students: "Students", teachers: "Teachers", classes: "Classes", programs: "Programs", reports: "Reports" };
-const ADD = { students: "Add student", teachers: "Add teacher", classes: "Add class", programs: "Add program" };
+const VIEWS = { enrolments: "Enrolments", students: "Students", teachers: "Teachers", classes: "Classes", site: "Site", reports: "Reports" };
+const ADD = { students: "Add student", teachers: "Add teacher", classes: "Add class", site: "Add program" };
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-const view = () => { const v = (location.hash || "#enrolments").slice(1); return VIEWS[v] ? v : "enrolments"; };
+let siteTab = "programs", guides = {}, reviews = [];
+const view = () => { let v = (location.hash || "#enrolments").slice(1); if (v === "programs") v = "site"; return VIEWS[v] ? v : "enrolments"; };
 const progName = id => (programs.find(p => p.id === id) || {}).en || "Program";
 
 function render() {
   const v = view();
   $$(".tabs a").forEach(a => a.setAttribute("aria-current", a.hash === "#" + v));
   $("#title").textContent = VIEWS[v];
-  const add = $("#addBtn"); add.hidden = !ADD[v]; if (ADD[v]) add.textContent = ADD[v];
+  const sub = $("#subseg"); sub.hidden = v !== "site";
+  if (v === "site") sub.innerHTML = [["programs", "Programs"], ["videos", "Videos"], ["reviews", "Reviews"]].map(([k, l]) => `<button data-sub="${k}" aria-pressed="${k === siteTab}">${l}</button>`).join("");
+  const add = $("#addBtn"); add.hidden = !ADD[v] || (v === "site" && siteTab !== "programs"); if (ADD[v]) add.textContent = ADD[v];
   const q = $("#q").value.trim().toLowerCase();
   const hit = o => !q || [o.name, o.email, o.course, o.loginId].join(" ").toLowerCase().includes(q);
   let html = "", empty = "";
@@ -68,10 +73,11 @@ function render() {
         st === "pending" || st === "rejected" ? btn("approve", "Approve", "") : "",
         st === "approved" ? btn("create", "Create account", "") + `<a class="btn small ghost" href="${chosen}">Email</a>` : "",
         st !== "rejected" && st !== "enrolled" ? btn("reject", "Reject") : "",
+        e.scholarship && e.scholarship !== "none" ? btn("essay", "Scholarship", "") : "",
         btn("delEnrol", "Delete", "danger")
       ].join("");
       return `<li class="item"><div class="grow"><b>${esc(e.name)}</b><small>${esc(e.email)} · ${esc(e.course)}</small>
-        ${e.note ? `<small>“${esc(e.note)}”</small>` : ""}<small>${when(e.createdAt)}</small></div>
+        ${e.note ? `<small>“${esc(e.note)}”</small>` : ""}${e.scholarship && e.scholarship !== "none" ? `<small>🎓 ${e.scholarship === "full" ? "100%" : "50%"} scholarship requested${e.scholarshipDecision ? " · decision: " + esc(e.scholarshipDecision) : " · not decided yet"}</small>` : ""}<small>${when(e.createdAt)}</small></div>
         <span class="pill s-${esc(st)}">${esc(st)}</span><div class="acts">${acts}</div></li>`;
     }).join("");
   } else if (v === "students" || v === "teachers") {
@@ -91,7 +97,7 @@ function render() {
         const n = members.filter(m => m.classId === c.id).length, st = c.status || "active";
         const btn = (act, label, cls = "ghost") => `<button class="btn small ${cls}" data-act="${act}" data-id="${c.id}">${label}</button>`;
         return `<li class="item"><div class="grow"><b>${esc(progName(c.programId))}${c.label ? " · " + esc(c.label) : ""}</b>
-          <small>${esc(scheduleLine(c, DAYS))} · ${esc(tzLabel(c.tz || DEFAULT_TZ))}</small>
+          <small>${esc(scheduleLine(c, DAYS))} · ${esc(tzLabel(c.tz || DEFAULT_TZ))}</small>${c.startDate ? `<small>${esc(durationText(c, "en"))}</small>` : ""}
           <small>${esc(c.teacherName || "No teacher yet")}${c.level ? " · " + esc(levelText(c.level, "en")) : ""}</small>
           <small>${safeUrl(c.zoomUrl) ? "Zoom ✓" : "Zoom –"} · ${safeUrl(c.telegramUrl) ? "Telegram ✓" : "Telegram –"}</small>
           <small>${n} student${n === 1 ? "" : "s"}${c.public ? " · shown on website" : " · not on website"}</small></div>
@@ -107,6 +113,18 @@ function render() {
       <div class="acts"><button class="btn small" data-act="reply" data-id="${r.id}">Reply</button>
       <button class="btn small ghost" data-act="toggleReport" data-id="${r.id}">${r.status === "resolved" ? "Reopen" : "Mark resolved"}</button>
       <button class="btn small danger" data-act="delReport" data-id="${r.id}">Delete</button></div></li>`).join("");
+  } else if (v === "site" && siteTab === "videos") {
+    html = [["guest", "Visitors (shown on the public page)"], ["student", "Students (shown in the student portal)"], ["teacher", "Teachers (shown in the teacher portal)"]]
+      .map(([k, l]) => `<li class="item"><div class="grow"><b>${l}</b><small>${safeUrl(guides[k]) ? esc(guides[k]) : "No video yet"}</small></div></li>`).join("")
+      + `<li class="item"><button class="btn small" data-act="editGuides">Edit video links</button></li>`;
+  } else if (v === "site" && siteTab === "reviews") {
+    empty = "No reviews yet. Students write one when they complete a class.";
+    html = reviews.slice().sort((a, b) => ts(b.createdAt) - ts(a.createdAt)).filter(r => hit({ name: r.studentName, email: r.text })).map(r => `<li class="item"><div class="grow">
+      <b><span class="stars">${stars(r.rating)}</span> ${esc(r.studentName)}</b><small>${esc(progName(r.programId))}</small>
+      <small style="color:var(--text)">${esc(r.text)}</small><small>${r.allowPublic ? "Allowed to be shown on the website" : "Did not allow public display"} · ${when(r.createdAt)}</small></div>
+      <span class="pill s-${r.status === "approved" ? "active" : "pending"}">${r.status === "approved" ? "published" : "private"}</span>
+      <div class="acts">${r.status === "approved" ? `<button class="btn small ghost" data-act="unpublish" data-id="${r.id}">Unpublish</button>` : r.allowPublic ? `<button class="btn small" data-act="publish" data-id="${r.id}">Publish</button>` : ""}
+      <button class="btn small danger" data-act="delReview" data-id="${r.id}">Delete</button></div></li>`).join("");
   } else {
     empty = `No programs yet. <br><br><button class="btn small" data-act="seed">Load starter programs</button>`;
     html = programs.filter(p => hit({ name: p.en + " " + p.my })).map(p => `<li class="item"><span class="dot">${esc(p.icon)}</span>
@@ -139,6 +157,11 @@ $("#list").addEventListener("click", async e => {
     if (act === "reply") openReply(reports.find(x => x.id === id));
     if (act === "toggleReport") { const r = reports.find(x => x.id === id); await db.collection("reports").doc(id).update({ status: r.status === "resolved" ? "new" : "resolved" }); }
     if (act === "delReport" && confirm("Delete this report?")) await db.collection("reports").doc(id).delete();
+    if (act === "essay") openEssay(en);
+    if (act === "editGuides") openGuides();
+    if (act === "publish") await publishReview(reviews.find(x => x.id === id));
+    if (act === "unpublish") { const b = db.batch(); b.delete(db.collection("testimonials").doc(id)); b.update(db.collection("reviews").doc(id), { status: "pending" }); await b.commit(); toast("Unpublished"); }
+    if (act === "delReview" && confirm("Delete this review?")) { const b = db.batch(); b.delete(db.collection("testimonials").doc(id)); b.delete(db.collection("reviews").doc(id)); await b.commit(); }
     if (act === "delClass") await deleteClass(classes.find(x => x.id === id));
   } catch (err) { console.error(err); toast("Something went wrong. Try again."); }
 });
@@ -162,7 +185,7 @@ function openCreate({ role = "student", name = "", email = "", enrolId: eid = nu
   F("loginId").value = suggestId(role); F("password").value = genPw();
   $("#cErr").hidden = true; cScrim.hidden = false; F("name").focus();
 }
-$("#addBtn").onclick = () => { const v = view(); if (v === "classes") openClass(); else if (v === "programs") openProgram(); else openCreate({ role: v === "teachers" ? "teacher" : "student" }); };
+$("#addBtn").onclick = () => { const v = view(); if (v === "classes") openClass(); else if (v === "site") openProgram(); else openCreate({ role: v === "teachers" ? "teacher" : "student" }); };
 F("role").onchange = () => { if (!idTouched) F("loginId").value = suggestId(F("role").value); };
 F("loginId").oninput = () => idTouched = true;
 $("#genPw").onclick = () => F("password").value = genPw();
@@ -250,6 +273,8 @@ function openClass(c = {}) {
       <label><span>Teacher</span><select name="teacherId">${opts([["", "— none yet —"], ...teachers.map(t => [t.id, `${t.name} (${t.loginId})`])], c.teacherId)}</select></label>
       ${sessionFields(sessionsOf(c), DAYS, SESS_L)}
       <label><span>Time zone</span><select name="tz">${tzOptions(c.tz)}</select></label>
+      <label><span>Start date</span><input type="date" name="startDate" value="${esc(c.startDate)}"></label>
+      <label><span>Duration</span><select name="durationMonths">${opts([["", "— not set —"], ...Array.from({ length: 12 }, (_, i) => [i + 1, `${i + 1} month${i ? "s" : ""}`])], c.durationMonths || "")}</select></label>
       <label><span>Place (English)</span><input name="venue_en" placeholder="Online via Zoom" value="${esc(c.venue_en)}"></label>
       <label><span>Place (မြန်မာ)</span><input name="venue_my" value="${esc(c.venue_my)}"></label>
       <label><span>Level</span><select name="level">${opts([["", "— not set —"], ...LEVELS.map(l => [l, levelText(l, "en") + " · " + LEVEL_NAME.my[l]])], c.level || "")}</select></label>
@@ -257,19 +282,26 @@ function openClass(c = {}) {
       <label><span>Zoom link</span><input name="zoomUrl" placeholder="https://zoom.us/j/…" autocapitalize="none" value="${esc(c.zoomUrl)}"></label>
       <label><span>Status</span><select name="status">${opts([["active", "Active"], ["completed", "Completed"]], c.status || "active")}</select></label>
       <label><span>On website</span><select name="public">${opts([["yes", "Show on public schedule"], ["no", "Keep private"]], c.public === false ? "no" : "yes")}</select></label>
-    </form><button class="btn wide" id="mSave">Save</button>`);
+    </form><p class="note center" id="durNote"></p><button class="btn wide" id="mSave">Save</button>`);
+  const updDur = () => {   // live preview of the end date and number of sessions
+    const f = $("#mForm").elements, sr = readSessions(f, SESS_L);
+    const i = courseInfo({ startDate: f.startDate.value, durationMonths: f.durationMonths.value, sessions: sr.list || [] });
+    $("#durNote").textContent = i ? `Ends ${fmtDate(i.end, "en")} · ${i.total} sessions in total` : "";
+  };
+  $("#mForm").addEventListener("input", updDur); $("#mForm").addEventListener("change", updDur); updDur();
   $("#mSave").onclick = async () => {
     const f = $("#mForm").elements, t = users.find(u => u.id === f.teacherId.value);
+    if (!!f.startDate.value !== !!f.durationMonths.value) return mErr("Set both the start date and the duration, or leave both empty.");
     const sr = readSessions(f, SESS_L); if (sr.error) return mErr(sr.error);
     const d = { programId: f.programId.value, label: f.label.value.trim(), teacherId: f.teacherId.value, teacherName: t ? t.name : "",
       ...scheduleFields(sr.list, f.tz.value), venue_en: f.venue_en.value.trim(), venue_my: f.venue_my.value.trim() || f.venue_en.value.trim(),
-      status: f.status.value, public: f.public.value === "yes", level: f.level.value, telegramUrl: safeUrl(f.telegramUrl.value), zoomUrl: safeUrl(f.zoomUrl.value) };
+      status: f.status.value, public: f.public.value === "yes", level: f.level.value, startDate: f.startDate.value, durationMonths: f.durationMonths.value ? Number(f.durationMonths.value) : "", telegramUrl: safeUrl(f.telegramUrl.value), zoomUrl: safeUrl(f.zoomUrl.value) };
     if ((f.telegramUrl.value.trim() && !d.telegramUrl) || (f.zoomUrl.value.trim() && !d.zoomUrl)) return mErr("Links must start with https://");
     const ref = c.id ? db.collection("classes").doc(c.id) : db.collection("classes").doc(), pub = db.collection("publicSchedule").doc(ref.id);
     const b = db.batch();
     b.set(ref, { ...d, ...(c.id ? {} : { createdAt: firebase.firestore.FieldValue.serverTimestamp() }) }, { merge: true });
     // Only non-sensitive fields go to the public schedule (no teacher or student information).
-    if (d.public && d.status === "active") b.set(pub, { programId: d.programId, label: d.label, day: d.day, time: d.time, sessions: d.sessions, tz: d.tz, venue_en: d.venue_en, venue_my: d.venue_my, level: d.level });
+    if (d.public && d.status === "active") b.set(pub, { programId: d.programId, label: d.label, day: d.day, time: d.time, sessions: d.sessions, tz: d.tz, venue_en: d.venue_en, venue_my: d.venue_my, level: d.level, startDate: d.startDate, durationMonths: d.durationMonths });
     else b.delete(pub);
     try { await b.commit(); closeModal(); toast("Class saved"); } catch (e) { console.error(e); mErr("Could not save. Try again."); }
   };
@@ -280,7 +312,7 @@ async function deleteClass(c) {
   const b = db.batch();
   b.delete(db.collection("classes").doc(c.id)); b.delete(db.collection("publicSchedule").doc(c.id));
   members.filter(m => m.classId === c.id).forEach(m => b.delete(db.collection("memberships").doc(m.id)));
-  const snaps = await Promise.all(["exams", "grades", "attendance", "attendanceEntries", "materials", "messages"].map(n => db.collection(n).where("classId", "==", c.id).get()));
+  const snaps = await Promise.all(["exams", "grades", "attendance", "attendanceEntries", "materials", "messages", "reviews"].map(n => db.collection(n).where("classId", "==", c.id).get()));
   const refs = snaps.flatMap(s => s.docs.map(d => d.ref));
   await b.commit();
   for (let i = 0; i < refs.length; i += 400) { const bb = db.batch(); refs.slice(i, i + 400).forEach(r => bb.delete(r)); await bb.commit(); }
@@ -409,4 +441,49 @@ function openReply(r) {
     try { await db.collection("reports").doc(r.id).update({ adminReply: reply, status: "resolved", repliedAt: firebase.firestore.FieldValue.serverTimestamp() }); closeModal(); toast("Reply saved"); }
     catch (e) { console.error(e); mErr("Could not save. Try again."); }
   };
+}
+
+/* ---------- Switch between Programs / Videos / Reviews on the Site tab ---------- */
+$("#subseg").addEventListener("click", e => { const b = e.target.closest("[data-sub]"); if (b) { siteTab = b.dataset.sub; render(); } });
+
+/* ---------- Scholarship request: read the essay and record your decision ---------- */
+function openEssay(e) {
+  if (!e) return;
+  sheet("Scholarship request", `<p class="note center">${esc(e.name)} · ${e.scholarship === "full" ? "100%" : "50%"} requested · ${esc(e.course)}</p>
+    <p class="body" style="white-space:pre-wrap;margin-top:12px;color:var(--text)">${esc(e.essay)}</p>
+    <p class="note">This is private. Only you can read it.</p>
+    <div class="acts" style="justify-content:center;margin-top:10px">
+      <button class="btn small" data-d="full">Grant 100%</button><button class="btn small" data-d="half">Grant 50%</button>
+      <button class="btn small danger" data-d="declined">Decline</button><button class="btn small ghost" data-d="">Clear</button></div>`, "Close");
+  $$("[data-d]", modal).forEach(b => b.onclick = async () => {
+    try { await db.collection("enrolments").doc(e.id).update({ scholarshipDecision: b.dataset.d }); closeModal(); toast("Decision saved"); }
+    catch (err) { console.error(err); mErr("Could not save. Try again."); }
+  });
+}
+
+/* ---------- "How to use" video links ---------- */
+function openGuides() {
+  sheet("How-to video links", `<p class="note center">Paste a link to a short tutorial video for each group (YouTube, Facebook, Telegram…). Leave empty to hide it.</p>
+    <form id="mForm" class="group form" style="margin-top:12px" novalidate>
+      <label><span>Visitors</span><input name="guest" placeholder="https://" autocapitalize="none" value="${esc(guides.guest)}"></label>
+      <label><span>Students</span><input name="student" placeholder="https://" autocapitalize="none" value="${esc(guides.student)}"></label>
+      <label><span>Teachers</span><input name="teacher" placeholder="https://" autocapitalize="none" value="${esc(guides.teacher)}"></label></form>
+    <button class="btn wide" id="mSave">Save</button>`);
+  $("#mSave").onclick = async () => {
+    const f = $("#mForm").elements, d = {};
+    for (const k of ["guest", "student", "teacher"]) { const v = f[k].value.trim(); if (v && !safeUrl(v)) return mErr("Links must start with https://"); d[k] = v ? safeUrl(v) : ""; }
+    try { await db.collection("siteContent").doc("guides").set({ ...d, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }); closeModal(); toast("Saved"); }
+    catch (e) { console.error(e); mErr("Could not save. Try again."); }
+  };
+}
+
+/* ---------- Publish a student review as a testimonial (first name only) ---------- */
+async function publishReview(r) {
+  if (!r) return;
+  const name = prompt("Name to show on the website (first name is best):", (r.studentName || "").split(" ")[0]);
+  if (name === null) return;
+  const b = db.batch();
+  b.set(db.collection("testimonials").doc(r.id), { name: name.trim() || "A CLC student", programId: r.programId || "", rating: r.rating, text: r.text, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+  b.update(db.collection("reviews").doc(r.id), { status: "approved" });
+  await b.commit(); toast("Published on the website");
 }
