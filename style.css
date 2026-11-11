@@ -275,3 +275,7 @@ h3{font-size:20px;text-align:center}
 .starpick button{border:0;background:none;font-size:34px;line-height:1;color:var(--fill);cursor:pointer;transition:transform .3s ease,color .3s ease}
 .starpick button.on{color:#C9A24B}.starpick button:hover{transform:scale(1.12)}
 .chk.top{align-items:flex-start;padding:12px 0}
+
+/* ---------- Seven admin tabs ---------- */
+.tabs.seven a{white-space:nowrap}
+@media(max-width:720px){.tabs.seven a{font-size:11px;padding:8px 0}}
