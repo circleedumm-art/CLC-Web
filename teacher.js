@@ -9,7 +9,7 @@ const store = { get: k => { try { return localStorage.getItem(k); } catch { retu
 
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth(), db = firebase.firestore(), FV = firebase.firestore.FieldValue;
-let lang = store.get("clc_lang") || "en", me = null, ready = false, programs = [], classes = [], members = [], cache = {}, cur = {}, rt = 0, msgs = [], reports = [], tp = {};
+let lang = store.get("clc_lang") || "en", me = null, ready = false, programs = [], classes = [], members = [], cache = {}, cur = {}, rt = 0, msgs = [], reports = [], tp = {}, guides = {};
 
 const DAYS = {
   en: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
@@ -77,6 +77,7 @@ async function load() {
     const [mg, rp, pf] = await Promise.all([db.collection("messages").where("teacherId", "==", me.id).get().catch(() => null),
       db.collection("reports").where("fromUid", "==", me.id).get().catch(() => null), db.collection("teacherProfiles").doc(me.id).get().catch(() => null)]);
     msgs = mg ? docs(mg) : []; reports = rp ? docs(rp) : []; tp = pf && pf.exists ? pf.data() : {};
+    try { const gd = await db.collection("siteContent").doc("guides").get(); guides = gd.exists ? gd.data() : {}; } catch (e) { console.warn(e); }
   } catch (e) { console.error(e); toast(t("loadFail")); }
 }
 async function classData(id) {
@@ -87,9 +88,10 @@ async function classData(id) {
 }
 
 /* ---------- Helpers ---------- */
-const cTitle = c => { const p = programs.find(x => x.id === c.programId); return (p ? p[lang] : "") + (c.label ? " · " + c.label : ""); };
+const cTitle = c => { const p = programs.find(x => x.id === c.programId); return (p ? p[lang] : "") + (c.label ? " - " + c.label : ""); };
 const mem = c => members.filter(m => m.classId === c.id).sort((a, b) => (a.loginId || "").localeCompare(b.loginId || ""));
 const live = c => mem(c).filter(m => m.status !== "completed");
+const helpRow = () => safeUrl(guides.teacher) ? `<ul class="group" style="margin-bottom:6px"><li class="item go" tabindex="0" data-help="1"><div class="grow"><b>▶ ${t("help")}</b></div></li></ul>` : "";
 const empty = m => `<li class="empty"><div>${m}</div></li>`;
 const opts = (arr, sel) => arr.map(([v, x]) => `<option value="${esc(v)}" ${String(v) === String(sel) ? "selected" : ""}>${esc(x)}</option>`).join("");
 const fmt = d => { const x = new Date(d + "T00:00"); return isNaN(x) ? esc(d) : x.toLocaleDateString(lang === "my" ? "my-MM" : "en-GB", { day: "numeric", month: "short", year: "numeric" }); };
@@ -109,13 +111,19 @@ function render() {
   const c = v === "class" && classes.find(x => x.id === id);
   if (c) return renderClass(c, SUBS.includes(tab) ? tab : "att", token);
   $("#title").textContent = `${t("hi")}, ${first()}`;
-  $("#view").innerHTML = `<ul class="group">${classes.slice().sort((a, b) => firstKey(a) - firstKey(b)).map(c => `
+  $("#view").innerHTML = helpRow() + `<ul class="group">${classes.slice().sort((a, b) => firstKey(a) - firstKey(b)).map(c => `
     <li class="item go" tabindex="0" data-go="${c.id}"><div class="grow"><b>${esc(cTitle(c))}</b>
-    <small>${esc(scheduleLine(c, DAYS[lang]))} · ${esc(tzLabel(c.tz || DEFAULT_TZ))}</small>${c["venue_" + lang] ? `<small>${esc(c["venue_" + lang])}</small>` : ""}
+    <small>${esc(scheduleLine(c, DAYS[lang], lang))} · ${esc(tzLabel(c.tz || DEFAULT_TZ))}</small>${c["venue_" + lang] ? `<small>${esc(c["venue_" + lang])}</small>` : ""}
     <small>${live(c).length} ${t("students")}</small></div><span class="pill s-${c.status === "completed" ? "enrolled" : "active"}">${t(c.status === "completed" ? "completed" : "active")}</span></li>`).join("") || empty(t("noClass"))}</ul>`;
 }
 addEventListener("hashchange", render);
-$("#view").addEventListener("click", e => { const g = e.target.closest("[data-go]"); if (g) location.hash = `#class/${g.dataset.go}/att`; });
+$("#view").addEventListener("click", e => {
+  const g = e.target.closest("[data-go]"); if (g) location.hash = `#class/${g.dataset.go}/att`;
+  if (e.target.closest("[data-help]")) {
+    const m = $("#modal"); m.innerHTML = `<div class="sheet" role="dialog" aria-modal="true"><div class="grab"></div><h3>${t("help")}</h3><div style="margin-top:12px">${videoBlock(guides.teacher, "▶ " + t("watch"))}</div><button class="link" id="mc">${t("close")}</button></div>`;
+    m.hidden = false; $("#mc").onclick = () => { m.hidden = true; m.innerHTML = ""; };
+  }
+});
 $("#view").addEventListener("keydown", e => { if (e.key === "Enter") e.target.click(); });
 
 async function renderClass(c, tab, token) {
@@ -172,7 +180,7 @@ const BODY = {
     const rate = m => { let a = 0, n = 0; d.att.forEach(x => { const v = x.records && x.records[m.studentId]; if (v === "present" || v === "late") { a++; n++; } else if (v === "absent") n++; }); return n ? `${a}/${n} (${Math.round(a / n * 100)}%)` : "—"; };
     const p = programs.find(x => x.id === c.programId);
     return `<ul class="group info" style="margin-top:14px"><li><span>${t("program")}</span><b>${esc(p ? p[lang] : "")}</b></li>
-        <li><span>${t("status")}</span><b>${t(c.status === "completed" ? "completed" : "active")}</b></li>${c.level ? `<li><span>${t("levelLbl")}</span><b>${esc(levelText(c.level, lang))}</b></li>` : ""}</ul>
+        <li><span>${t("status")}</span><b>${t(c.status === "completed" ? "completed" : "active")}</b></li>${c.startDate ? `<li><span>${t("duration")}</span><b>${esc(durationText(c, lang))}</b></li>` : ""}${c.level ? `<li><span>${t("levelLbl")}</span><b>${esc(levelText(c.level, lang))}</b></li>` : ""}</ul>
       <p class="sub">${t("changeTime")}</p>
       <form id="tf" class="group form" novalidate>
         ${sessionFields(sessionsOf(c), DAYS[lang], SLT())}
