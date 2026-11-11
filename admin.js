@@ -266,12 +266,17 @@ function openProgram(p = {}) {
 function openClass(c = {}) {
   if (!programs.length) { toast("Add a program first (Programs tab)."); return; }
 
-  // Default values to prevent undefined errors on a new class
+  // Ensure default sessions exist so new classes never start empty/invalid
   const defaultClass = {
     programId: "", label: "", teacherId: "", tz: "", startDate: "", durationMonths: "",
     venue_en: "", venue_my: "", level: "", telegramUrl: "", zoomUrl: "",
     status: "active", public: true, ...c
   };
+
+  // If no sessions exist for this class, provide a default active session row
+  if (!defaultClass.sessions || !defaultClass.sessions.length) {
+    defaultClass.sessions = [{ day: "Monday", start: "09:00", end: "10:00", active: true }];
+  }
 
   const teachers = users.filter(u => u.role === "teacher" && (u.status !== "inactive" || u.id === defaultClass.teacherId));
 
@@ -297,26 +302,19 @@ function openClass(c = {}) {
     const f = $("#mForm").elements;
     const sr = readSessions(f, SESS_L);
     
-    // Extract valid sessions list if no error, otherwise try parsing existing raw session inputs
-    const validSessions = (!sr.error && sr.list && sr.list.length) ? sr.list : (sessionsOf(defaultClass) || []);
-    
-    if (f.startDate.value && f.durationMonths.value) {
+    if (f.startDate.value && f.durationMonths.value && !sr.error && sr.list && sr.list.length > 0) {
       const i = courseInfo({ 
         startDate: f.startDate.value, 
         durationMonths: f.durationMonths.value, 
-        sessions: validSessions 
+        sessions: sr.list 
       });
 
       if (i && i.end) {
-        if (!validSessions.length) {
-          $("#durNote").textContent = `Ends ${fmtDate(i.end, "en")} · Select session days & times above to count sessions`;
-        } else {
-          $("#durNote").textContent = `Ends ${fmtDate(i.end, "en")} · ${i.total} session${i.total === 1 ? "" : "s"} in total`;
-        }
+        $("#durNote").textContent = `Ends ${fmtDate(i.end, "en")} · ${i.total} session${i.total === 1 ? "" : "s"} in total`;
         return;
       }
     }
-    $("#durNote").textContent = "";
+    $("#durNote").textContent = f.startDate.value && f.durationMonths.value ? "Complete session details to calculate total sessions" : "";
   };
 
   $("#mForm").addEventListener("input", updDur); 
