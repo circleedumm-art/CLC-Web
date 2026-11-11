@@ -1,5 +1,5 @@
 /* =========================================================
-   CLC website – Step 1 (public site)
+   CLC website – public site
    Programs and the schedule now come from the admin dashboard.
    The starter programs live in defaults.js.
    ========================================================= */
@@ -39,6 +39,7 @@ const T = {
     f_ok:"Received. If you are chosen for a CLC class, we will notify you by email.",
     f_email_note:"If you are chosen for a CLC class, we will send the notification to this email. Please use an email you check often.",
     f_bad:"Please enter a valid email address.",
+    f_privacy:"Your name and email are used only to process your enrolment and to contact you.",
     guide_h:"How to use this website", guide_p:"Short videos that show you how the website works.", g_guest:"For visitors", g_student:"For students", g_teacher:"For teachers", watch:"Watch video",
     f_schol:"Scholarship (optional)", schol_none:"I do not need a scholarship", schol_half:"Apply for 50% scholarship", schol_full:"Apply for 100% scholarship",
     schol_warn:"Scholarships are limited. Please apply only if you really need support and have a reasonable reason.",
@@ -48,7 +49,7 @@ const T = {
     r_student:"Student", r_teacher:"Teacher", r_admin:"Admin",
     l_id:"ID", l_pw:"Password", l_signin:"Sign in", l_google:"Continue with Google",
     l_soon:"Your ID and password are given by the CLC admin.", close:"Close", logout:"Log out",
-    l_bad:"Wrong ID or password.", l_notadmin:"This Google account is not the CLC admin.", l_in:"Signed in. Your dashboard is coming in the next steps.", e_fail:"Could not send. Check your internet and try again."
+    l_bad:"Wrong ID or password.", l_notadmin:"This Google account is not the CLC admin.", l_in:"Signed in.", e_fail:"Could not send. Check your internet and try again."
   },
   my: {
     nav_about:"အကြောင်း", nav_programs:"သင်တန်းများ", nav_schedule:"အချိန်ဇယား", nav_enrol:"စာရင်းသွင်း", login:"ဝင်ရန်",
@@ -57,7 +58,7 @@ const T = {
     cta_enrol:"စာရင်းသွင်းမည်", cta_programs:"သင်တန်းများကြည့်မည်",
     about_h:"CLC အကြောင်း",
     about_p:"Circle Learning Centre ကို ၂၀၂၁ ခုနှစ်တွင် Facebook စာမျက်နှာအဖြစ် စတင်ခဲ့ပါသည်။ စေတနာ့ဝန်ထမ်း ဆရာများက အင်္ဂလိပ်စာ အခက်အခဲရှိသော လူငယ်နှင့် လူကြီးများ ယုံကြည်မှုရှိရှိ စကားပြောနိုင်လာစေရန် ကူညီခဲ့ကြသည်။",
-    f1_k:"စတင်တည်ထောင်ချိန်", f1_v:"၂၀၂၁", f2_k:"တည်ထောင်သူ", f2_v:"ဆရာပီတာ", f3_k:"ဝန်ဆောင်မှုပေးသူများ", f3_v:"မြန်မာလူငယ်နှင့် လူကြီးမျာ",
+    f1_k:"စတင်တည်ထောင်ချိန်", f1_v:"၂၀၂၁", f2_k:"တည်ထောင်သူ", f2_v:"ဆရာပီတာ", f3_k:"ဝန်ဆောင်မှုပေးသူများ", f3_v:"မြန်မာလူငယ်နှင့် လူကြီးများ",
     prog_h:"သင်တန်းများ", sched_h:"အတန်း အချိန်ဇယား",
     sched_note:"အချိန်များ ပြောင်းလဲနိုင်ပါသည်။ မတက်ခင် ပြန်လည်စစ်ဆေးပါ။", sched_none:"အချိန်ဇယားကို မကြာမီ ကြေညာပါမည်။", dashboard:"Dashboard", portal:"ကျွန်ုပ်၏ အတန်းများ",
     enrol_h:"သင်တန်း စာရင်းသွင်းရန်",
@@ -66,6 +67,7 @@ const T = {
     f_ok:"လက်ခံရရှိပါပြီ။ CLC သင်တန်းအတွက် ရွေးချယ်ခံရပါက အီးမေးလ်ဖြင့် အကြောင်းကြားပါမည်။",
     f_email_note:"CLC သင်တန်းအတွက် ရွေးချယ်ခံရပါက ဤအီးမေးလ်သို့ အကြောင်းကြားပါမည်။ ပုံမှန်ကြည့်ရှုသော အီးမေးလ်ကို အသုံးပြုပါ။",
     f_bad:"မှန်ကန်သော အီးမေးလ်လိပ်စာ ထည့်ပါ။",
+    f_privacy:"သင့်အမည်နှင့် အီးမေးလ်ကို စာရင်းသွင်းမှု စီစဉ်ရန်နှင့် ဆက်သွယ်ရန်အတွက်သာ အသုံးပြုပါမည်။",
     guide_h:"ဝက်ဘ်ဆိုက် အသုံးပြုပုံ", guide_p:"ဝက်ဘ်ဆိုက်ကို မည်သို့အသုံးပြုရမည်ကို ဗီဒီယိုတိုများဖြင့် ကြည့်ပါ။", g_guest:"ဧည့်သည်များအတွက်", g_student:"ကျောင်းသားများအတွက်", g_teacher:"ဆရာများအတွက်", watch:"ဗီဒီယို ကြည့်မည်",
     f_schol:"ပညာသင်ဆု (ရွေးချယ်စရာ)", schol_none:"ပညာသင်ဆု မလိုအပ်ပါ", schol_half:"ပညာသင်ဆု ၅၀% လျှောက်မည်", schol_full:"ပညာသင်ဆု ၁၀၀% လျှောက်မည်",
     schol_warn:"ပညာသင်ဆုများမှာ အကန့်အသတ်ရှိပါသည်။ အမှန်တကယ် အကူအညီလိုအပ်ပြီး သင့်လျော်သော အကြောင်းပြချက်ရှိမှသာ လျှောက်ထားပါ။",
@@ -75,7 +77,7 @@ const T = {
     r_student:"ကျောင်းသား", r_teacher:"ဆရာ", r_admin:"အက်ဒမင်",
     l_id:"ID", l_pw:"စကားဝှက်", l_signin:"ဝင်မည်", l_google:"Google ဖြင့် ဆက်လုပ်မည်",
     l_soon:"ID နှင့် စကားဝှက်ကို CLC အက်ဒမင်က ပေးပါမည်။", close:"ပိတ်မည်", logout:"ထွက်မည်",
-    l_bad:"ID သို့မဟုတ် စကားဝှက် မှားနေပါသည်။", l_notadmin:"ဤ Google အကောင့်သည် CLC အက်ဒမင် မဟုတ်ပါ။", l_in:"ဝင်ရောက်ပြီးပါပြီ။ သင့် dashboard ကို နောက်အဆင့်များတွင် ထည့်ပါမည်။", e_fail:"ပို့မရပါ။ အင်တာနက်စစ်ပြီး ပြန်ကြိုးစားပါ။"
+    l_bad:"ID သို့မဟုတ် စကားဝှက် မှားနေပါသည်။", l_notadmin:"ဤ Google အကောင့်သည် CLC အက်ဒမင် မဟုတ်ပါ။", l_in:"ဝင်ရောက်ပြီးပါပြီ။", e_fail:"ပို့မရပါ။ အင်တာနက်စစ်ပြီး ပြန်ကြိုးစားပါ။"
   }
 };
 
@@ -94,7 +96,7 @@ function renderLang() {
   $$("[data-lang]").forEach(b => b.setAttribute("aria-pressed", b.dataset.lang === lang));
 
   $("#programList").innerHTML = DATA.programs.map((p, i) => `
-    <li class="prog" tabindex="0" data-course="${i}">
+    <li class="prog" tabindex="0" role="button" data-course="${i}">
       <span class="dot">${esc(p.icon)}</span>
       <span class="t"><b>${esc(p[lang])}</b><small>${esc(p[lang + "_d"])}</small></span>
     </li>`).join("");
@@ -155,26 +157,27 @@ $("#programList").addEventListener("click", e => {
 });
 $("#programList").addEventListener("keydown", e => { if (e.key === "Enter") e.target.click(); });
 
-/* ---------- Enrol form (Step 2 will save this to Firestore) ---------- */
+/* ---------- Enrol form ---------- */
 $("#enrolForm").addEventListener("submit", async e => {
   e.preventDefault();
   const f = e.target;
+  if (f.website && f.website.value) { f.reset(); $("#enrolOk").hidden = false; return; }   // honeypot: bots fill this hidden field
   const okEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.contact.value.trim());
   if (!f.name.value.trim()) { f.name.focus(); return; }
-  if (!okEmail) { f.contact.focus(); alert(T[lang].f_bad); return; }
+  if (!okEmail) { f.contact.focus(); toast(T[lang].f_bad); return; }
   const schol = f.scholarship.value, essay = schol === "none" ? "" : f.essay.value.trim(), st = essayStats(essay);
   if (schol !== "none" && (st.n < st.min)) { f.essay.focus(); toast(T[lang].essay_short); return; }
   if (schol !== "none" && st.n > st.max) { f.essay.focus(); toast(T[lang].essay_long); return; }
   const entry = { scholarship: schol, essay, name: f.name.value.trim(), email: f.contact.value.trim(),
                   course: DATA.programs[f.course.value].en, note: f.note.value.trim(), status: "pending" };
   try {
-    if (db) await db.collection("enrolments").add({ ...entry, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
-    else console.log("Firebase not set up yet – enrolment not saved:", entry);
+    if (!db) throw new Error("Firebase is not configured");
+    await db.collection("enrolments").add({ ...entry, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
     f.reset(); updateEssay(); $("#enrolOk").hidden = false;
   } catch (err) { console.error(err); toast(T[lang].e_fail); }
 });
 
-/* ---------- Login sheet (UI only for now) ---------- */
+/* ---------- Login sheet ---------- */
 const scrim = $("#scrim");
 const openSheet = () => { scrim.hidden = false; $("#signIn").focus(); };
 const closeSheet = () => { scrim.hidden = true; $("#loginBtn").focus(); };
@@ -188,7 +191,7 @@ $$("#roleSeg button").forEach(b => b.onclick = () => {
 });
 
 /* ---------- Firebase ---------- */
-const live = typeof firebase !== "undefined" && typeof firebaseConfig !== "undefined" && !firebaseConfig.apiKey.startsWith("PASTE");
+const live = typeof firebase !== "undefined" && typeof firebaseConfig !== "undefined";
 let auth = null, db = null;
 if (live) { firebase.initializeApp(firebaseConfig); auth = firebase.auth(); db = firebase.firestore(); }
 
