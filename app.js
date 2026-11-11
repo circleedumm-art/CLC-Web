@@ -12,6 +12,7 @@ const LINKS = {
 
 const DATA = {
   programs: DEFAULT_PROGRAMS.slice(),   // replaced by your Programs from the database once you add them
+  guides: {}, quotes: [],
   schedule: []                          // filled from classes you mark "Show on website"
 };
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -38,6 +39,12 @@ const T = {
     f_ok:"Received. If you are chosen for a CLC class, we will notify you by email.",
     f_email_note:"If you are chosen for a CLC class, we will send the notification to this email. Please use an email you check often.",
     f_bad:"Please enter a valid email address.",
+    guide_h:"How to use this website", guide_p:"Short videos that show you how the website works.", g_guest:"For visitors", g_student:"For students", g_teacher:"For teachers", watch:"Watch video",
+    f_schol:"Scholarship (optional)", schol_none:"I do not need a scholarship", schol_half:"Apply for 50% scholarship", schol_full:"Apply for 100% scholarship",
+    schol_warn:"Scholarships are limited. Please apply only if you really need support and have a reasonable reason.",
+    f_essay:"Describe your situation and why you need a scholarship (up to 250 words, or up to 10 sentences if you write in Burmese)",
+    essay_words:"words", essay_sentences:"sentences", essay_short:"Please explain a little more (at least 30 words, or 3 sentences in Burmese).", essay_long:"Your answer is too long (250 words, or 10 sentences in Burmese, at most).",
+    rev_h:"What our students say", rev_p:"Reviews from students who completed a CLC class.", rev_none:"Reviews from our students will appear here soon.",
     r_student:"Student", r_teacher:"Teacher", r_admin:"Admin",
     l_id:"ID", l_pw:"Password", l_signin:"Sign in", l_google:"Continue with Google",
     l_soon:"Your ID and password are given by the CLC admin.", close:"Close", logout:"Log out",
@@ -45,12 +52,12 @@ const T = {
   },
   my: {
     nav_about:"အကြောင်း", nav_programs:"သင်တန်းများ", nav_schedule:"အချိန်ဇယား", nav_enrol:"စာရင်းသွင်း", login:"ဝင်ရန်",
-    hero_title:"အတူသင်ယူ၊ အတူတိုးတက်ကြမယ်။",
-    hero_sub:"အင်္ဂလိပ်စာ သင်ယူလိုသော မြန်မာနိုင်ငံသားတိုင်း အဖိုးအခ အသက်သာဆုံးနည်းလမ်းဖြင့် အင်္ဂလိပ်စာတတ်ရမည်။",
+    hero_title:"အတူလေ့လာသင်ယူရင်း အတူတိုးတက်ကြမယ်",
+    hero_sub:"အင်္ဂလိပ်စာ သင်ယူလိုသော မြန်မာနိုင်ငံသားတိုင်း အဖိုးအခ အသက်သာဆုံးနည်းလမ်းဖြင့် အင်္ဂလိပ်စာတတ်ရမည်။",
     cta_enrol:"စာရင်းသွင်းမည်", cta_programs:"သင်တန်းများကြည့်မည်",
     about_h:"CLC အကြောင်း",
     about_p:"Circle Learning Centre ကို ၂၀၂၁ ခုနှစ်တွင် Facebook စာမျက်နှာအဖြစ် စတင်ခဲ့ပါသည်။ စေတနာ့ဝန်ထမ်း ဆရာများက အင်္ဂလိပ်စာ အခက်အခဲရှိသော လူငယ်နှင့် လူကြီးများ ယုံကြည်မှုရှိရှိ စကားပြောနိုင်လာစေရန် ကူညီခဲ့ကြသည်။",
-    f1_k:"စတင်တည်ထောင်ချိန်", f1_v:"၂၀၂၁", f2_k:"စတင်တည်ထောင်သူ", f2_v:"ဆရာပီတာ", f3_k:"ဝန်ဆောင်မှုပေးသူများ", f3_v:"မြန်မာလူငယ်နှင့် လူကြီးများ",
+    f1_k:"စတင်တည်ထောင်ချိန်", f1_v:"၂၀၂၁", f2_k:"တည်ထောင်သူ", f2_v:"ဆရာပီတာ", f3_k:"ဝန်ဆောင်မှုပေးသူများ", f3_v:"မြန်မာလူငယ်နှင့် လူကြီးမျာ",
     prog_h:"သင်တန်းများ", sched_h:"အတန်း အချိန်ဇယား",
     sched_note:"အချိန်များ ပြောင်းလဲနိုင်ပါသည်။ မတက်ခင် ပြန်လည်စစ်ဆေးပါ။", sched_none:"အချိန်ဇယားကို မကြာမီ ကြေညာပါမည်။", dashboard:"Dashboard", portal:"ကျွန်ုပ်၏ အတန်းများ",
     enrol_h:"သင်တန်း စာရင်းသွင်းရန်",
@@ -59,6 +66,12 @@ const T = {
     f_ok:"လက်ခံရရှိပါပြီ။ CLC သင်တန်းအတွက် ရွေးချယ်ခံရပါက အီးမေးလ်ဖြင့် အကြောင်းကြားပါမည်။",
     f_email_note:"CLC သင်တန်းအတွက် ရွေးချယ်ခံရပါက ဤအီးမေးလ်သို့ အကြောင်းကြားပါမည်။ ပုံမှန်ကြည့်ရှုသော အီးမေးလ်ကို အသုံးပြုပါ။",
     f_bad:"မှန်ကန်သော အီးမေးလ်လိပ်စာ ထည့်ပါ။",
+    guide_h:"ဝက်ဘ်ဆိုက် အသုံးပြုပုံ", guide_p:"ဝက်ဘ်ဆိုက်ကို မည်သို့အသုံးပြုရမည်ကို ဗီဒီယိုတိုများဖြင့် ကြည့်ပါ။", g_guest:"ဧည့်သည်များအတွက်", g_student:"ကျောင်းသားများအတွက်", g_teacher:"ဆရာများအတွက်", watch:"ဗီဒီယို ကြည့်မည်",
+    f_schol:"ပညာသင်ဆု (ရွေးချယ်စရာ)", schol_none:"ပညာသင်ဆု မလိုအပ်ပါ", schol_half:"ပညာသင်ဆု ၅၀% လျှောက်မည်", schol_full:"ပညာသင်ဆု ၁၀၀% လျှောက်မည်",
+    schol_warn:"ပညာသင်ဆုများမှာ အကန့်အသတ်ရှိပါသည်။ အမှန်တကယ် အကူအညီလိုအပ်ပြီး သင့်လျော်သော အကြောင်းပြချက်ရှိမှသာ လျှောက်ထားပါ။",
+    f_essay:"ပညာသင်ဆု လိုအပ်သည့် သင့်အခြေအနေကို ဖော်ပြပါ (အင်္ဂလိပ်လို စကားလုံး ၂၅၀ အထိ၊ မြန်မာလို ဝါကျ ၁၀ ကြောင်းအထိ)",
+    essay_words:"စကားလုံး", essay_sentences:"ဝါကျ", essay_short:"ပိုမိုအသေးစိတ် ရေးသားပါ (အနည်းဆုံး စကားလုံး ၃၀ သို့မဟုတ် မြန်မာလို ဝါကျ ၃ ကြောင်း)။", essay_long:"ရေးသားချက် ရှည်လွန်းပါသည် (စကားလုံး ၂၅၀ သို့မဟုတ် မြန်မာလို ဝါကျ ၁၀ ကြောင်းအထိ)။",
+    rev_h:"ကျောင်းသားများ၏ အမြင်", rev_p:"CLC အတန်းများ ပြီးဆုံးခဲ့သော ကျောင်းသားများ၏ အမြင်များ။", rev_none:"ကျောင်းသားများ၏ အမြင်များကို ဤနေရာတွင် မကြာမီ ပြသပါမည်။",
     r_student:"ကျောင်းသား", r_teacher:"ဆရာ", r_admin:"အက်ဒမင်",
     l_id:"ID", l_pw:"စကားဝှက်", l_signin:"ဝင်မည်", l_google:"Google ဖြင့် ဆက်လုပ်မည်",
     l_soon:"ID နှင့် စကားဝှက်ကို CLC အက်ဒမင်က ပေးပါမည်။", close:"ပိတ်မည်", logout:"ထွက်မည်",
@@ -86,15 +99,25 @@ function renderLang() {
       <span class="t"><b>${esc(p[lang])}</b><small>${esc(p[lang + "_d"])}</small></span>
     </li>`).join("");
 
-  const slots = DATA.schedule.flatMap(s => sessionsOf(s).map(x => ({ s, x })))
-    .sort((a, b) => a.x.day - b.x.day || String(a.x.start || a.x.time || "").localeCompare(String(b.x.start || b.x.time || "")));
-  $("#scheduleList").innerHTML = slots.length ? slots.map(({ s, x }) => {
-    const p = DATA.programs.find(y => y.id === s.programId);
-    return `<li class="day">
-      <span class="d">${DAYS[lang][x.day]}</span>
-      <span class="c">${esc(p ? p[lang] : "")}${s.label ? " · " + esc(s.label) : ""}<small>${esc(s["venue_" + lang])}${s.level ? " · " + esc(levelText(s.level, lang)) : ""}</small><small>${esc(tzLabel(s.tz || DEFAULT_TZ))}</small></span>
-      <span class="tm">${esc(sessionTime(x))}</span>
-    </li>`; }).join("") : `<li class="empty">${T[lang].sched_none}</li>`;
+  $("#scheduleList").innerHTML = DATA.schedule.length ? DATA.schedule.slice().sort((x, y) => firstKey(x) - firstKey(y)).map(s => {
+    const p = DATA.programs.find(y => y.id === s.programId), dur = durationText(s, lang);
+    return `<li class="cls"><div class="c"><b>${esc((p ? p[lang] : "") + (s.label ? " - " + s.label : ""))}</b>
+      <span class="when">${esc(whenText(s, DAYS[lang], lang))}</span>
+      <small>${esc(s["venue_" + lang] || "")}${s.level ? (s["venue_" + lang] ? " · " : "") + esc(levelText(s.level, lang)) : ""}</small>
+      <small>${esc(tzLabel(s.tz || DEFAULT_TZ))}${dur ? " · " + esc(dur) : ""}</small></div></li>`; }).join("") : `<li class="empty">${T[lang].sched_none}</li>`;
+
+  const gl = [["guest", "g_guest"], ["student", "g_student"], ["teacher", "g_teacher"]].filter(([k]) => safeUrl(DATA.guides[k]));
+  $("#guide").hidden = !gl.length;
+  $("#guideList").innerHTML = gl.map(([k, tk]) => `<li class="guide"><b>${T[lang][tk]}</b>${videoBlock(DATA.guides[k], "▶ " + T[lang].watch)}</li>`).join("");
+
+  $("#quoteList").innerHTML = DATA.quotes.length ? DATA.quotes.map(q => {
+    const p = DATA.programs.find(x => x.id === q.programId);
+    return `<figure class="quote"><div class="stars" aria-label="${esc(q.rating)}/5">${stars(Number(q.rating) || 0)}</div><blockquote>${esc(q.text)}</blockquote><figcaption>${esc(q.name)}${p ? " · " + esc(p[lang]) : ""}</figcaption></figure>`; }).join("")
+    : `<p class="note">${T[lang].rev_none}</p>`;
+
+  const ss = $("#scholSel"), keepS = ss.value || "none";
+  ss.innerHTML = [["none", "schol_none"], ["half", "schol_half"], ["full", "schol_full"]].map(([v, k]) => `<option value="${v}">${T[lang][k]}</option>`).join(""); ss.value = keepS;
+  updateEssay();
 
   const sel = $("#courseSelect"), keep = sel.value;
   sel.innerHTML = DATA.programs.map((p, i) => `<option value="${i}">${esc(p[lang])}</option>`).join("");
@@ -113,6 +136,17 @@ $("#themeBtn").onclick = () => {
   setTheme(t); store.set("clc_theme", t);
 };
 
+/* ---------- Scholarship essay (shown only when applying) ---------- */
+function updateEssay() {
+  const on = $("#scholSel").value !== "none";
+  $("#essayLbl").hidden = !on; $("#scholNote").hidden = !on;
+  const st = essayStats($("#essay").value), cnt = $("#essayCount");
+  cnt.hidden = !on;
+  cnt.textContent = `${st.n} / ${st.max} ${T[lang]["essay_" + st.unit]}`;
+  cnt.className = "note" + (st.n > st.max ? " bad" : "");
+}
+$("#scholSel").onchange = updateEssay; $("#essay").oninput = updateEssay;
+
 /* ---------- Tap a program → jump to enrol with it selected ---------- */
 $("#programList").addEventListener("click", e => {
   const li = e.target.closest("[data-course]"); if (!li) return;
@@ -128,12 +162,15 @@ $("#enrolForm").addEventListener("submit", async e => {
   const okEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.contact.value.trim());
   if (!f.name.value.trim()) { f.name.focus(); return; }
   if (!okEmail) { f.contact.focus(); alert(T[lang].f_bad); return; }
-  const entry = { name: f.name.value.trim(), email: f.contact.value.trim(),
+  const schol = f.scholarship.value, essay = schol === "none" ? "" : f.essay.value.trim(), st = essayStats(essay);
+  if (schol !== "none" && (st.n < st.min)) { f.essay.focus(); toast(T[lang].essay_short); return; }
+  if (schol !== "none" && st.n > st.max) { f.essay.focus(); toast(T[lang].essay_long); return; }
+  const entry = { scholarship: schol, essay, name: f.name.value.trim(), email: f.contact.value.trim(),
                   course: DATA.programs[f.course.value].en, note: f.note.value.trim(), status: "pending" };
   try {
     if (db) await db.collection("enrolments").add({ ...entry, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
     else console.log("Firebase not set up yet – enrolment not saved:", entry);
-    f.reset(); $("#enrolOk").hidden = false;
+    f.reset(); updateEssay(); $("#enrolOk").hidden = false;
   } catch (err) { console.error(err); toast(T[lang].e_fail); }
 });
 
@@ -158,9 +195,11 @@ if (live) { firebase.initializeApp(firebaseConfig); auth = firebase.auth(); db =
 async function loadContent() {
   if (!db) return;
   try {
-    const [pr, sc] = await Promise.all([db.collection("programs").orderBy("order").get(), db.collection("publicSchedule").get()]);
+    const [pr, sc, gd, tm] = await Promise.all([db.collection("programs").orderBy("order").get(), db.collection("publicSchedule").get(),
+      db.collection("siteContent").doc("guides").get().catch(() => null), db.collection("testimonials").orderBy("createdAt", "desc").limit(12).get().catch(() => null)]);
     if (!pr.empty) DATA.programs = pr.docs.map(d => ({ id: d.id, ...d.data() }));
     DATA.schedule = sc.docs.map(d => d.data());
+    DATA.guides = gd && gd.exists ? gd.data() : {}; DATA.quotes = tm ? tm.docs.map(d => d.data()) : [];
     renderLang();
   } catch (e) { console.warn("Could not load site content:", e); }
 }
