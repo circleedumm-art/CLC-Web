@@ -265,14 +265,14 @@ function openProgram(p = {}) {
 /* ---------- Classes ---------- */
 function openClass(c = {}) {
   if (!programs.length) { toast("Add a program first (Programs tab)."); return; }
-  
-  // Safe default values so empty sessions and fields don't cause errors
+
+  // Default values to prevent undefined errors on a new class
   const defaultClass = {
     programId: "", label: "", teacherId: "", tz: "", startDate: "", durationMonths: "",
     venue_en: "", venue_my: "", level: "", telegramUrl: "", zoomUrl: "",
     status: "active", public: true, ...c
   };
-  
+
   const teachers = users.filter(u => u.role === "teacher" && (u.status !== "inactive" || u.id === defaultClass.teacherId));
 
   sheet(defaultClass.id ? "Edit class" : "New class", `
@@ -293,10 +293,30 @@ function openClass(c = {}) {
       <label><span>On website</span><select name="public">${opts([["yes", "Show on public schedule"], ["no", "Keep private"]], defaultClass.public === false ? "no" : "yes")}</select></label>
     </form><p class="note center" id="durNote"></p><button class="btn wide" id="mSave">Save</button>`);
 
-  const updDur = () => {   // live preview of the end date and number of sessions
-    const f = $("#mForm").elements, sr = readSessions(f, SESS_L);
-    const i = courseInfo({ startDate: f.startDate.value, durationMonths: f.durationMonths.value, sessions: sr.list || [] });
-    $("#durNote").textContent = i ? `Ends ${fmtDate(i.end, "en")} · ${i.total} sessions in total` : "";
+  const updDur = () => {
+    const f = $("#mForm").elements;
+    const sr = readSessions(f, SESS_L);
+    
+    // Extract valid sessions list if no error, otherwise try parsing existing raw session inputs
+    const validSessions = (!sr.error && sr.list && sr.list.length) ? sr.list : (sessionsOf(defaultClass) || []);
+    
+    if (f.startDate.value && f.durationMonths.value) {
+      const i = courseInfo({ 
+        startDate: f.startDate.value, 
+        durationMonths: f.durationMonths.value, 
+        sessions: validSessions 
+      });
+
+      if (i && i.end) {
+        if (!validSessions.length) {
+          $("#durNote").textContent = `Ends ${fmtDate(i.end, "en")} · Select session days & times above to count sessions`;
+        } else {
+          $("#durNote").textContent = `Ends ${fmtDate(i.end, "en")} · ${i.total} session${i.total === 1 ? "" : "s"} in total`;
+        }
+        return;
+      }
+    }
+    $("#durNote").textContent = "";
   };
 
   $("#mForm").addEventListener("input", updDur); 
@@ -335,9 +355,11 @@ function openClass(c = {}) {
 
     b.set(ref, { ...d, ...(defaultClass.id ? {} : { createdAt: firebase.firestore.FieldValue.serverTimestamp() }) }, { merge: true });
     
-    // Only non-sensitive fields go to the public schedule (no teacher or student information).
-    if (d.public && d.status === "active") b.set(pub, { programId: d.programId, label: d.label, day: d.day, time: d.time, sessions: d.sessions, tz: d.tz, venue_en: d.venue_en, venue_my: d.venue_my, level: d.level, startDate: d.startDate, durationMonths: d.durationMonths });
-    else b.delete(pub);
+    if (d.public && d.status === "active") {
+      b.set(pub, { programId: d.programId, label: d.label, day: d.day, time: d.time, sessions: d.sessions, tz: d.tz, venue_en: d.venue_en, venue_my: d.venue_my, level: d.level, startDate: d.startDate, durationMonths: d.durationMonths });
+    } else {
+      b.delete(pub);
+    }
 
     try { 
       await b.commit(); 
@@ -349,7 +371,6 @@ function openClass(c = {}) {
     }
   };
 }
-
 async function deleteClass(c) {
   if (!c || !confirm("Delete this class and remove its students from it?")) return;
   const b = db.batch();
@@ -361,7 +382,6 @@ async function deleteClass(c) {
   for (let i = 0; i < refs.length; i += 400) { const bb = db.batch(); refs.slice(i, i + 400).forEach(r => bb.delete(r)); await bb.commit(); }
   toast("Class deleted");
 }
-
 /* ---------- Students in a class ---------- */
 function openMembers(c) {
   const cur = new Set(members.filter(m => m.classId === c.id).map(m => m.studentId));
