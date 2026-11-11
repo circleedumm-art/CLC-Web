@@ -137,6 +137,14 @@ function render() {
 addEventListener("hashchange", render);
 $("#q").addEventListener("input", render);
 
+/* Sub-segment tab selection for Site view */
+$("#subseg").addEventListener("click", e => {
+  const b = e.target.closest("[data-sub]");
+  if (!b) return;
+  siteTab = b.dataset.sub;
+  render();
+});
+
 /* ---------- Row actions ---------- */
 $("#list").addEventListener("click", async e => {
   const b = e.target.closest("[data-act]"); if (!b) return;
@@ -165,6 +173,45 @@ $("#list").addEventListener("click", async e => {
     if (act === "delClass") await deleteClass(classes.find(x => x.id === id));
   } catch (err) { console.error(err); toast("Something went wrong. Try again."); }
 });
+
+/* ---------- Missing Site Helpers (Guides / Reviews Publishing) ---------- */
+function openGuides() {
+  sheet("Edit video links", `
+    <form id="mForm" class="group form" style="margin-top:14px" novalidate>
+      <label><span>Visitors video link</span><input name="guest" placeholder="https://youtube.com/…" value="${esc(guides.guest || "")}"></label>
+      <label><span>Students video link</span><input name="student" placeholder="https://youtube.com/…" value="${esc(guides.student || "")}"></label>
+      <label><span>Teachers video link</span><input name="teacher" placeholder="https://youtube.com/…" value="${esc(guides.teacher || "")}"></label>
+    </form><button class="btn wide" id="mSave">Save</button>`);
+  $("#mSave").onclick = async () => {
+    const f = $("#mForm").elements;
+    const d = {
+      guest: safeUrl(f.guest.value.trim()),
+      student: safeUrl(f.student.value.trim()),
+      teacher: safeUrl(f.teacher.value.trim())
+    };
+    try {
+      await db.collection("siteContent").doc("guides").set(d, { merge: true });
+      closeModal(); toast("Video links saved");
+    } catch (e) {
+      console.error(e); mErr("Could not save. Try again.");
+    }
+  };
+}
+
+async function publishReview(r) {
+  if (!r) return;
+  const b = db.batch();
+  b.set(db.collection("testimonials").doc(r.id), {
+    programId: r.programId,
+    studentName: r.studentName,
+    rating: r.rating,
+    text: r.text,
+    createdAt: r.createdAt || firebase.firestore.FieldValue.serverTimestamp()
+  });
+  b.update(db.collection("reviews").doc(r.id), { status: "approved" });
+  await b.commit();
+  toast("Review published");
+}
 
 /* ---------- Create account ---------- */
 const cScrim = $("#cScrim"), dScrim = $("#dScrim"), cForm = $("#cForm"), F = n => cForm.elements[n];
@@ -203,7 +250,6 @@ $("#cSave").onclick = async () => {
   if (password.length < 6) return err("Password needs at least 6 characters.");
   const btn = $("#cSave"); btn.disabled = true;
   try {
-    // A second Firebase "app" creates the login, so the admin stays signed in.
     const sec = firebase.apps.find(a => a.name === "creator") || firebase.initializeApp(firebaseConfig, "creator");
     const cred = await sec.auth().createUserWithEmailAndPassword(`${loginId}@${ID_DOMAIN}`, password);
     await sec.auth().signOut();
@@ -272,7 +318,6 @@ function openClass(c = {}) {
     status: "active", public: true, ...c
   };
 
-  // Ensure default sessions exist so new classes don't start uninitialized/invalid
   if (!defaultClass.sessions || !defaultClass.sessions.length) {
     defaultClass.sessions = [{ day: "Monday", start: "09:00", end: "10:00", active: true }];
   }
@@ -439,7 +484,6 @@ async function openRecords(c) {
 
   if (keep && $(".sheet", modal)) $(".sheet", modal).scrollTop = keep;
 
-  // Handle all actions inside the Records sheet
   $(".sheet", modal).onclick = async e => {
     const btn = e.target.closest("[data-r]");
     if (!btn) return;
