@@ -10,7 +10,7 @@ const store = { get: k => { try { return localStorage.getItem(k); } catch { retu
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth(), db = firebase.firestore(), FV = firebase.firestore.FieldValue;
 let lang = store.get("clc_lang") || "en", me = null, ready = false;
-let programs = [], rows = [], exams = [], grades = [], entries = [], materials = [], tprof = {}, msgs = [], reports = [], reviews = [], guides = {};
+let ann = [], annSeenAt = 0, programs = [], rows = [], exams = [], grades = [], entries = [], materials = [], tprof = {}, msgs = [], reports = [], reviews = [], guides = {};
 
 const DAYS = {
   en: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
@@ -88,6 +88,7 @@ async function load() {
     safe(db.collection("grades").where("studentId", "==", me.id).get())
   ]);
   exams = ex.flatMap(docs); materials = mt.flatMap(docs); grades = docs(gr);
+  ann = await loadAnnouncements(db, me, rows.map(r => r.c.id)); annSeenAt = annLast(me.id);
   const tids = [...new Set(rows.map(r => r.c.teacherId).filter(Boolean))];
   await Promise.all(tids.map(async id => { const d = await safe(db.collection("teacherProfiles").doc(id).get()); if (d && d.exists) tprof[id] = d.data(); }));
 }
@@ -151,6 +152,10 @@ const VIEW = {
         ${rv ? `<button class="btn small" data-cert="${r.m.id}">${t("view")}</button>` : `<button class="btn small" data-review="${r.c.id}">${t("reviewBtn")}</button>`}`); });
     return `<h3 class="sec">${t("attendance")}</h3>${group("", att, t("noClass"))}<h3 class="sec">${t("grades")}</h3>${gb || group("", [], t("noGrade"))}<h3 class="sec">${t("certs")}</h3>${group("", certs, t("noCert"))}`;
   },
+  announcements() {
+    const live = ann.filter(a => annIsLive(a));
+    return group("", live.map(a => annItem(a, t, lang, annSeenAt, false)), t("annNone"));
+  },
   messages() {
     const th = rows.filter(r => r.c.teacherId).map(r => {
       const list = msgs.filter(m => m.classId === r.c.id).sort((a, b) => ts(a.createdAt) - ts(b.createdAt)), last = list[list.length - 1], n = unread(r.c.id, list, "student");
@@ -179,8 +184,11 @@ function render() {
   if (!me || !ready) return;
   const h = (location.hash || "#classes").slice(1), v = VIEW[h] ? h : "classes";
   $$(".tabs a").forEach(a => a.setAttribute("aria-current", a.hash === "#" + v));
+  const nNew = annUnseen(me.id, ann.filter(a => annIsLive(a))), al = $('.tabs a[href="#announcements"]');
+  if (al && nNew && v !== "announcements") al.textContent += ` (${nNew})`;
   $("#title").textContent = v === "classes" ? `${t("hi")}, ${me.name.split(" ")[0]}` : t(v);
   $("#view").innerHTML = VIEW[v]();
+  if (v === "announcements") annMarkSeen(me.id, ann.filter(a => annIsLive(a)));
   if (v === "profile") bindProfile();
   if (v === "messages") bindReportBlock(db, me, t, reports, render, toast);
 }
