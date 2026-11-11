@@ -62,7 +62,7 @@ function threadSheet(modal, { title, list, me, t, onSend, onClose }) {
   modal.querySelector("#tsend").onclick = async () => {
     const ta = modal.querySelector("textarea"), text = ta.value.trim(), b = modal.querySelector("#tsend"); if (!text) return;
     b.disabled = true;
-    try { list.push(await onSend(text)); ta.value = ""; paint(); } catch (e) { console.error(e); alert(t("fail")); } finally { b.disabled = false; }
+    try { list.push(await onSend(text)); ta.value = ""; paint(); } catch (e) { console.error(e); typeof toast === "function" ? toast(t("fail")) : alert(t("fail")); } finally { b.disabled = false; }
   };
 }
 
