@@ -34,11 +34,14 @@ service cloud.firestore {
     // ---- Guests -----------------------------------------------------------
     // Guests may only ADD a pending enrolment. They can never read, change or delete anything.
     match /enrolments/{id} {
-      allow create: if request.resource.data.keys().hasOnly(['name','email','course','note','status','createdAt'])
+      allow create: if request.resource.data.keys().hasOnly(['name','email','course','note','status','createdAt','scholarship','essay'])
         && request.resource.data.status == 'pending'
         && request.resource.data.name is string && request.resource.data.name.size() <= 100
         && request.resource.data.email is string && request.resource.data.email.size() <= 150
         && request.resource.data.note is string && request.resource.data.note.size() <= 500
+        && request.resource.data.get('scholarship', 'none') in ['none', 'half', 'full']
+        && request.resource.data.get('essay', '') is string && request.resource.data.get('essay', '').size() <= 3000
+        && (request.resource.data.get('scholarship', 'none') == 'none' || request.resource.data.get('essay', '').size() >= 20)
         && request.resource.data.createdAt == request.time;
       allow read, update, delete: if isAdmin();
     }
@@ -158,8 +161,27 @@ service cloud.firestore {
         && request.resource.data.createdAt == request.time;
     }
 
+    // A student writes ONE review per completed class (needed before the certificate opens in the portal).
+    // Reviews are private: only the author and the admin can read them.
+    match /reviews/{id} {
+      allow read: if signedIn() && resource.data.studentId == request.auth.uid;
+      allow create: if signedIn() && active()
+        && request.resource.data.keys().hasOnly(['classId','programId','studentId','studentName','rating','text','allowPublic','status','createdAt'])
+        && request.resource.data.studentId == request.auth.uid
+        && id == request.resource.data.classId + '_' + request.auth.uid
+        && get(/databases/$(database)/documents/memberships/$(id)).data.status == 'completed'
+        && request.resource.data.rating is int && request.resource.data.rating >= 1 && request.resource.data.rating <= 5
+        && request.resource.data.text is string && request.resource.data.text.size() >= 10 && request.resource.data.text.size() <= 1000
+        && request.resource.data.allowPublic is bool
+        && request.resource.data.status == 'pending'
+        && request.resource.data.createdAt == request.time;
+    }
+
     // ---- Public website content ------------------------------------------
     match /programs/{id} { allow read: if true; }
+    // Approved student testimonials (first name only, copied here by the admin) and the "how to use" video links.
+    match /testimonials/{id} { allow read: if true; }
+    match /siteContent/{id} { allow read: if true; }
     match /publicSchedule/{id} {
       allow read: if true;
       allow update: if teaches(id) && publicFieldsOnly();   // keeps the public timetable in step with a teacher's change
