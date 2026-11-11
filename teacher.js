@@ -9,7 +9,7 @@ const store = { get: k => { try { return localStorage.getItem(k); } catch { retu
 
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth(), db = firebase.firestore(), FV = firebase.firestore.FieldValue;
-let lang = store.get("clc_lang") || "en", me = null, ready = false, programs = [], classes = [], members = [], cache = {}, cur = {}, rt = 0, msgs = [], reports = [], tp = {}, guides = {};
+let lang = store.get("clc_lang") || "en", me = null, ready = false, programs = [], classes = [], members = [], cache = {}, cur = {}, rt = 0, msgs = [], reports = [], tp = {}, guides = {}, ann = [], annSeenAt = 0;
 
 const DAYS = {
   en: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
@@ -74,6 +74,7 @@ async function load() {
     programs = docs(pr); classes = docs(cs);
     const ms = await Promise.all(classes.map(c => db.collection("memberships").where("classId", "==", c.id).get()));
     members = ms.flatMap(docs);
+    ann = await loadAnnouncements(db, me, classes.map(c => c.id)); annSeenAt = annLast(me.id);
     const [mg, rp, pf] = await Promise.all([db.collection("messages").where("teacherId", "==", me.id).get().catch(() => null),
       db.collection("reports").where("fromUid", "==", me.id).get().catch(() => null), db.collection("teacherProfiles").doc(me.id).get().catch(() => null)]);
     msgs = mg ? docs(mg) : []; reports = rp ? docs(rp) : []; tp = pf && pf.exists ? pf.data() : {};
@@ -105,7 +106,10 @@ function render() {
   $$("[data-lang]").forEach(b => b.setAttribute("aria-pressed", b.dataset.lang === lang));
   if (!me || !ready) return;
   const token = ++rt, [v, id, tab] = (location.hash || "#classes").slice(1).split("/");
-  $$(".tabs a").forEach(a => a.setAttribute("aria-current", a.hash === (v === "profile" ? "#profile" : v === "messages" ? "#messages" : "#classes")));
+  $$(".tabs a").forEach(a => a.setAttribute("aria-current", a.hash === (v === "profile" ? "#profile" : v === "messages" ? "#messages" : v === "announcements" ? "#announcements" : "#classes")));
+  const got = () => ann.filter(a => a.fromUid !== me.id && annIsLive(a)), nNew = annUnseen(me.id, got()), al = $('.tabs a[href="#announcements"]');
+  if (al && nNew && v !== "announcements") al.textContent += ` (${nNew})`;
+  if (v === "announcements") { $("#title").textContent = t("announcements"); $("#view").innerHTML = announceHtml(); bindAnnounce(); annMarkSeen(me.id, got()); return; }
   if (v === "messages") { $("#title").textContent = t("messages"); $("#view").innerHTML = messagesHtml(); bindMessages(); return; }
   if (v === "profile") { $("#title").textContent = t("profile"); $("#view").innerHTML = profileHtml(); bindProfile(); return; }
   const c = v === "class" && classes.find(x => x.id === id);
@@ -336,4 +340,34 @@ function bindProfile() {
       await u.updatePassword(f.nw.value); $("#pwf").reset(); toast(t("pwOk"));
     } catch (e) { console.error(e); toast(t("pwBad")); }
   };
+}
+
+/* ---------- Announcements: read what the admin sent, and post to all students ---------- */
+function announceHtml() {
+  const got = ann.filter(a => a.fromUid !== me.id && annIsLive(a)), mine = ann.filter(a => a.fromUid === me.id);
+  const list = (items, e) => `<ul class="group">${items.length ? items.join("") : empty(e)}</ul>`;
+  return `<p class="sub">${t("annWrite")}</p><p class="note">${t("annHelp")}</p>
+    <form id="af" class="group form" novalidate>
+      <label><span>${t("annTitleLbl")}</span><input name="title" maxlength="120"></label>
+      <label><span>${t("annMsgLbl")}</span><textarea name="text" rows="4" maxlength="2000"></textarea></label></form>
+    <button class="btn wide" id="asend">${t("annSend")}</button>
+    <p class="sub">${t("annReceived")}</p>${list(got.map(a => annItem(a, t, lang, annSeenAt, false)), t("annNone"))}
+    <p class="sub">${t("annMine")}</p>${list(mine.map(a => annItem(a, t, lang, Infinity, true)), t("annNone"))}`;
+}
+function bindAnnounce() {
+  $("#asend").onclick = async () => {
+    const f = $("#af").elements, title = f.title.value.trim(), text = f.text.value.trim();
+    if (!title || !text) return toast(t("annNeed"));
+    const b = $("#asend"); b.disabled = true;
+    const d = { title, text, audience: "students", fromUid: me.id, fromName: me.name, fromRole: "teacher", publishAt: FV.serverTimestamp(), createdAt: FV.serverTimestamp() };
+    try {
+      const ref = await db.collection("announcements").add(d), now = { ms: Date.now() };
+      ann.unshift({ id: ref.id, ...d, publishAt: now, createdAt: now }); toast(t("annSent")); render();
+    } catch (e) { console.error(e); toast(t("fail")); b.disabled = false; }
+  };
+  $$("[data-ann-del]").forEach(b => b.onclick = async () => {
+    if (!confirm(t("annConfirmDel"))) return;
+    try { await db.collection("announcements").doc(b.dataset.annDel).delete(); ann = ann.filter(a => a.id !== b.dataset.annDel); render(); }
+    catch (e) { console.error(e); toast(t("fail")); }
+  });
 }
