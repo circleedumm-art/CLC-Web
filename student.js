@@ -10,7 +10,7 @@ const store = { get: k => { try { return localStorage.getItem(k); } catch { retu
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth(), db = firebase.firestore(), FV = firebase.firestore.FieldValue;
 let lang = store.get("clc_lang") || "en", me = null, ready = false;
-let programs = [], rows = [], exams = [], grades = [], entries = [], materials = [], tprof = {}, msgs = [], reports = [];
+let programs = [], rows = [], exams = [], grades = [], entries = [], materials = [], tprof = {}, msgs = [], reports = [], reviews = [], guides = {};
 
 const DAYS = {
   en: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
@@ -40,7 +40,14 @@ const T = {
     teacherProfile: "ဆရာ ပရိုဖိုင်", watchIntro: "မိတ်ဆက်ဗီဒီယို ကြည့်မည်", noIntro: "မိတ်ဆက်ဗီဒီယို မရှိသေးပါ။", noAbout: "မိတ်ဆက် မရှိသေးပါ။",
     msgTeacher: "ဆရာထံ မက်ဆေ့ချ်ပို့ရန်", noThreads: "မက်ဆေ့ချ်ပို့ရန် ဆရာ မရှိသေးပါ။", newMsgs: "အသစ်", lastMsg: "နောက်ဆုံး", sessions: "ကြိမ်" }
 };
-Object.assign(T.en, COMMON_T.en); Object.assign(T.my, COMMON_T.my);   // strings shared with the teacher page
+Object.assign(T.en, COMMON_T.en, {
+  reviewNeed: "Write a short review of this class to unlock your certificate.", reviewBtn: "Write review", reviewTitle: "Review this class", reviewText: "Your review",
+  reviewHint: "What did you learn? What could be better?", allowPublic: "Allow CLC to show my review on the website (first name only)", submitReview: "Submit review",
+  reviewThanks: "Thank you! Your certificate is unlocked.", reviewShort: "Please choose a rating and write at least 10 characters." });
+Object.assign(T.my, COMMON_T.my, {
+  reviewNeed: "လက်မှတ်ကို ဖွင့်ရန် ဤအတန်းအကြောင်း အမြင်တိုတို ရေးပေးပါ။", reviewBtn: "အမြင် ရေးမည်", reviewTitle: "ဤအတန်းကို အကဲဖြတ်ပါ", reviewText: "သင့်အမြင်",
+  reviewHint: "ဘာတွေ သင်ယူခဲ့ပါသလဲ။ ဘာတွေ ပိုကောင်းနိုင်မလဲ။", allowPublic: "ကျွန်ုပ်၏ အမြင်ကို ဝက်ဘ်ဆိုက်တွင် ပြသရန် ခွင့်ပြုပါသည် (နာမည်ရှေ့ပိုင်းသာ)", submitReview: "အမြင် ပို့မည်",
+  reviewThanks: "ကျေးဇူးတင်ပါသည်။ သင့်လက်မှတ် ဖွင့်ပြီးပါပြီ။", reviewShort: "အဆင့်ရွေးပြီး အက္ခရာ ၁၀ လုံးအနည်းဆုံး ရေးပါ။" });   // strings shared with the teacher page
 const t = k => T[lang][k] ?? k;
 
 /* ---------- Theme & language ---------- */
@@ -70,6 +77,8 @@ async function load() {
     safe(db.collection("reports").where("fromUid", "==", me.id).get())
   ]);
   programs = docs(pr); entries = docs(en); msgs = docs(ms); reports = docs(rp);
+  const [rv, gd] = await Promise.all([safe(db.collection("reviews").where("studentId", "==", me.id).get()), safe(db.collection("siteContent").doc("guides").get())]);
+  reviews = docs(rv); guides = gd && gd.exists ? gd.data() : {};
   const mem = docs(mm);
   const cls = await Promise.all(mem.map(m => safe(db.collection("classes").doc(m.classId).get())));
   rows = mem.map((m, i) => ({ m, c: cls[i] && cls[i].exists ? { id: cls[i].id, ...cls[i].data() } : null })).filter(r => r.c);
@@ -84,7 +93,7 @@ async function load() {
 }
 
 /* ---------- Helpers ---------- */
-const cTitle = c => { const p = programs.find(x => x.id === c.programId); return (p ? p[lang] : "") + (c.label ? " · " + c.label : ""); };
+const cTitle = c => { const p = programs.find(x => x.id === c.programId); return (p ? p[lang] : "") + (c.label ? " - " + c.label : ""); };
 const fmt = d => { const x = d && d.toDate ? d.toDate() : new Date(String(d).length === 10 ? d + "T00:00" : d); return isNaN(x) ? "" : x.toLocaleDateString(lang === "my" ? "my-MM" : "en-GB", { day: "numeric", month: "short", year: "numeric" }); };
 const li = inner => `<li class="item">${inner}</li>`;
 const group = (h, items, e) => `${h ? `<p class="sub">${h}</p>` : ""}<ul class="group">${items.length ? items.join("") : `<li class="empty"><div>${e}</div></li>`}</ul>`;
@@ -92,6 +101,7 @@ const byDay = (a, b) => firstKey(a.c) - firstKey(b.c);
 // The session in the student's own time zone, shown only when it differs from the class time zone.
 const yourTime = (s, c) => { const l = localSession(s, c.tz || DEFAULT_TZ); return l ? `<small>${t("yourTime")}: ${DAYS[lang][l.day]} ${fmt12(l.start)} – ${fmt12(l.end)} (${l.offset})</small>` : ""; };
 const statsFor = cid => attStats(entries.filter(x => x.classId === cid).map(x => x.status));
+const helpRow = () => safeUrl(guides.student) ? `<ul class="group" style="margin-bottom:6px"><li class="item go" tabindex="0" data-help="1"><div class="grow"><b>▶ ${t("help")}</b></div></li></ul>` : "";
 const modal = $("#modal");
 const closeModal = () => { modal.hidden = true; modal.innerHTML = ""; };
 const showSheet = html => { modal.innerHTML = `<div class="sheet" role="dialog" aria-modal="true"><div class="grab"></div>${html}<button class="link" id="mc">${t("close")}</button></div>`; modal.hidden = false; $("#mc").onclick = closeModal; };
@@ -104,20 +114,19 @@ const VIEW = {
     const card = r => {
       const c = r.c, done = r.m.status === "completed", lv = levelText(c.level, lang), mats = materials.filter(x => x.classId === c.id);
       return `<p class="sub">${esc(cTitle(c))}</p><ul class="group">
-        ${li(`<div class="grow"><small>${esc(scheduleLine(c, DAYS[lang]))}</small><small>${esc(tzLabel(c.tz || DEFAULT_TZ))}</small>${sessionsOf(c).map(x => yourTime(x, c)).join("")}${c["venue_" + lang] ? `<small>${esc(c["venue_" + lang])}</small>` : ""}${done ? `<small>${t("completed")}: ${fmt(r.m.completedAt)}</small>` : ""}</div>${lv ? `<span class="pill s-enrolled">${esc(lv)}</span>` : ""}`)}
+        ${li(`<div class="grow"><small>${esc(scheduleLine(c, DAYS[lang], lang))}</small><small>${esc(tzLabel(c.tz || DEFAULT_TZ))}</small>${c.startDate ? `<small>${esc(durationText(c, lang))}</small>` : ""}${sessionsOf(c).map(x => yourTime(x, c)).join("")}${c["venue_" + lang] ? `<small>${esc(c["venue_" + lang])}</small>` : ""}${done ? `<small>${t("completed")}: ${fmt(r.m.completedAt)}</small>` : ""}</div>${lv ? `<span class="pill s-enrolled">${esc(lv)}</span>` : ""}`)}
         ${c.teacherId ? `<li class="item go" tabindex="0" data-teacher="${c.teacherId}"><div class="grow"><small>${t("teacher")}</small><b>${esc(c.teacherName || "")}</b></div></li>` : ""}
         ${!done && (safeUrl(c.telegramUrl) || safeUrl(c.zoomUrl)) ? li(`<div class="rowlinks">${linkBtn(c.telegramUrl, "✈️ " + t("tg"), "")}${linkBtn(c.zoomUrl, "🎥 " + t("zoom"), "")}</div>`) : ""}
         ${mats.map(m => li(`<div class="grow"><small>📎 ${t("material")}</small><b>${esc(m.title)}</b></div>${linkBtn(m.url, t("open"))}`)).join("")}</ul>`;
     };
     const en = rows.filter(r => r.m.status !== "completed").sort(byDay), co = rows.filter(r => r.m.status === "completed");
-    return (en.length ? `<h3 class="sec">${t("enrolled")}</h3>` + en.map(card).join("") : group("", [], t("noClass"))) + (co.length ? `<h3 class="sec">${t("completed")}</h3>` + co.map(card).join("") : "");
+    return helpRow() + (en.length ? `<h3 class="sec">${t("enrolled")}</h3>` + en.map(card).join("") : group("", [], t("noClass"))) + (co.length ? `<h3 class="sec">${t("completed")}</h3>` + co.map(card).join("") : "");
   },
   schedule() {
     const act = rows.filter(r => r.m.status !== "completed" && r.c.status !== "completed").sort(byDay);
-    const wk = act.flatMap(r => sessionsOf(r.c).map(s => ({ r, s })))
-      .sort((a, b) => a.s.day - b.s.day || String(a.s.start || a.s.time || "").localeCompare(String(b.s.start || b.s.time || "")))
-      .map(({ r, s }) => `<li class="day"><span class="d">${DAYS[lang][s.day]}</span><span class="c">${esc(cTitle(r.c))}<small>${esc(r.c["venue_" + lang] || "")}</small><small>${esc(tzLabel(r.c.tz || DEFAULT_TZ))}</small>${yourTime(s, r.c)}
-      ${safeUrl(r.c.zoomUrl) ? `<div class="rowlinks" style="margin-top:6px">${linkBtn(r.c.zoomUrl, "🎥 " + t("zoom"), "")}</div>` : ""}</span><span class="tm">${esc(sessionTime(s))}</span></li>`);
+    const wk = act.map(r => `<li class="cls"><div class="c"><b>${esc(cTitle(r.c))}</b><span class="when">${esc(whenText(r.c, DAYS[lang], lang))}</span>
+      <small>${esc(r.c["venue_" + lang] || "")}</small><small>${esc(tzLabel(r.c.tz || DEFAULT_TZ))}</small>${sessionsOf(r.c).map(x => yourTime(x, r.c)).join("")}
+      ${safeUrl(r.c.zoomUrl) ? `<div class="rowlinks" style="margin-top:6px">${linkBtn(r.c.zoomUrl, "🎥 " + t("zoom"), "")}</div>` : ""}</div></li>`);
     const today = new Date().toLocaleDateString("en-CA");
     const ex = exams.slice().sort((a, b) => String(a.date).localeCompare(String(b.date))).map(e => {
       const r = rows.find(x => x.c.id === e.classId);
@@ -137,8 +146,9 @@ const VIEW = {
       return g.length ? group(esc(cTitle(r.c)), [li(`<div class="grow"><b>${t("overall")}</b>${pctBar(gradePct(g))}</div><b>${gradePct(g)}%</b>`), ...g.map(x => li(`<div class="grow"><b>${esc(x.title)}</b>${x.comment ? `<small>${esc(x.comment)}</small>` : ""}</div>
         <b>${esc(x.score)} / ${esc(x.max)}</b><span class="pill">${pctOf(x)}%</span>`))], "") : "";
     }).join("");
-    const certs = rows.filter(r => r.m.status === "completed").map(r => li(`<div class="grow"><b>${esc(cTitle(r.c))}</b><small>${fmt(r.m.completedAt)}</small></div>
-      <button class="btn small" data-cert="${r.m.id}">${t("view")}</button>`));
+    const certs = rows.filter(r => r.m.status === "completed").map(r => { const rv = reviews.some(x => x.classId === r.c.id);
+      return li(`<div class="grow"><b>${esc(cTitle(r.c))}</b><small>${fmt(r.m.completedAt)}</small>${rv ? "" : `<small>${t("reviewNeed")}</small>`}</div>
+        ${rv ? `<button class="btn small" data-cert="${r.m.id}">${t("view")}</button>` : `<button class="btn small" data-review="${r.c.id}">${t("reviewBtn")}</button>`}`); });
     return `<h3 class="sec">${t("attendance")}</h3>${group("", att, t("noClass"))}<h3 class="sec">${t("grades")}</h3>${gb || group("", [], t("noGrade"))}<h3 class="sec">${t("certs")}</h3>${group("", certs, t("noCert"))}`;
   },
   messages() {
@@ -178,7 +188,9 @@ addEventListener("hashchange", render);
 
 /* ---------- Clicks: teacher profile, message thread, certificate ---------- */
 $("#view").addEventListener("click", e => {
-  const tb = e.target.closest("[data-teacher]"), th = e.target.closest("[data-thread]"), cb = e.target.closest("[data-cert]");
+  const tb = e.target.closest("[data-teacher]"), th = e.target.closest("[data-thread]"), cb = e.target.closest("[data-cert]"), hb = e.target.closest("[data-help]"), rb = e.target.closest("[data-review]");
+  if (hb) showSheet(`<h3>${t("help")}</h3><div style="margin-top:12px">${videoBlock(guides.student, "▶ " + t("watch"))}</div>`);
+  if (rb) openReview(rb.dataset.review);
   if (tb) {
     const id = tb.dataset.teacher, p = tprof[id] || {}, c = rows.find(r => r.c.teacherId === id).c;
     showSheet(`<h3>${esc(p.name || c.teacherName)}</h3><p class="note center">${t("teacherProfile")}</p>
@@ -196,6 +208,7 @@ $("#view").addEventListener("click", e => {
   }
   if (cb) {
     const r = rows.find(x => x.m.id === cb.dataset.cert); if (!r) return;
+    if (!reviews.some(x => x.classId === r.c.id)) return openReview(r.c.id);   // a review unlocks the certificate
     const s = statsFor(r.c.id), gp = gradePct(grades.filter(x => x.classId === r.c.id));
     showSheet(`<div class="cert"><img src="logo.png" alt="" height="56" onerror="this.remove()"><h4>${t("cert")}</h4><p>${t("certify")}</p><h3>${esc(me.name)}</h3>
       <p>${t("done")}</p><h3>${esc(cTitle(r.c))}</h3>
@@ -221,5 +234,24 @@ function bindProfile() {
       await u.reauthenticateWithCredential(firebase.auth.EmailAuthProvider.credential(u.email, f.cur.value));
       await u.updatePassword(f.nw.value); $("#pwf").reset(); toast(t("pwOk"));
     } catch (e) { console.error(e); toast(t("pwBad")); }
+  };
+}
+
+/* ---------- Review a completed class (unlocks the certificate) ---------- */
+function openReview(cid) {
+  const r = rows.find(x => x.c.id === cid); if (!r) return;
+  let rating = 0;
+  showSheet(`<h3>${t("reviewTitle")}</h3><p class="note center">${esc(cTitle(r.c))}</p>
+    <div class="starpick" id="sp">${[1, 2, 3, 4, 5].map(n => `<button type="button" data-n="${n}" aria-label="${n}">★</button>`).join("")}</div>
+    <form id="rvf" class="group form" novalidate><label class="essay"><span>${t("reviewText")}</span><textarea name="text" rows="5" maxlength="1000" placeholder="${esc(t("reviewHint"))}"></textarea></label></form>
+    <label class="chk top"><input type="checkbox" id="rvp"><span>${t("allowPublic")}</span></label>
+    <button class="btn wide" id="rvs">${t("submitReview")}</button>`);
+  $$("#sp button").forEach(b => b.onclick = () => { rating = Number(b.dataset.n); $$("#sp button").forEach(x => x.classList.toggle("on", Number(x.dataset.n) <= rating)); });
+  $("#rvs").onclick = async () => {
+    const text = $("#rvf").elements.text.value.trim();
+    if (!rating || text.length < 10) return toast(t("reviewShort"));
+    const d = { classId: cid, programId: r.c.programId || "", studentId: me.id, studentName: me.name, rating, text, allowPublic: $("#rvp").checked, status: "pending", createdAt: FV.serverTimestamp() };
+    try { await db.collection("reviews").doc(`${cid}_${me.id}`).set(d); reviews.push({ ...d, createdAt: { ms: Date.now() } }); closeModal(); toast(t("reviewThanks")); render(); }
+    catch (e) { console.error(e); toast(t("fail")); }
   };
 }
