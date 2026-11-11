@@ -17,7 +17,7 @@
 
 <header class="bar">
   <a class="brand" href="#top" aria-label="Circle Learning Centre">
-    <img class="logo-img" src="logo.png" alt="" width="32" height="32" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'logo'}))"><span class="brand-name">Circle Learning Centre</span>
+    <img class="logo-img" src="logo.png" alt="" width="32" height="32" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'logo'}))"><span class="brand-name">CLC</span>
   </a>
   <nav class="tabs" aria-label="Main">
     <a href="#about" data-i18n="nav_about"></a>
@@ -67,6 +67,12 @@
     <ul class="group" id="scheduleList"></ul>
   </section>
 
+  <section id="guide" class="wrap" hidden>
+    <h2 data-i18n="guide_h"></h2>
+    <p class="body" data-i18n="guide_p"></p>
+    <ul class="group" id="guideList"></ul>
+  </section>
+
   <section id="enrol" class="wrap narrow">
     <h2 data-i18n="enrol_h"></h2>
     <p class="body" data-i18n="enrol_p"></p>
@@ -74,11 +80,21 @@
       <label><span data-i18n="f_name"></span><input name="name" required autocomplete="name"></label>
       <label><span data-i18n="f_contact"></span><input name="contact" type="email" inputmode="email" required autocomplete="email"></label>
       <label><span data-i18n="f_course"></span><select name="course" id="courseSelect"></select></label>
+      <label><span data-i18n="f_schol"></span><select name="scholarship" id="scholSel"></select></label>
+      <label class="essay" id="essayLbl" hidden><span data-i18n="f_essay"></span><textarea name="essay" id="essay" rows="8"></textarea></label>
       <label><span data-i18n="f_note"></span><textarea name="note" rows="3"></textarea></label>
     </form>
+    <p class="note warn" id="scholNote" hidden data-i18n="schol_warn"></p>
+    <p class="note" id="essayCount" hidden></p>
     <p class="note" data-i18n="f_email_note"></p>
     <button class="btn wide" type="submit" form="enrolForm" data-i18n="f_submit"></button>
     <p class="ok" id="enrolOk" hidden data-i18n="f_ok"></p>
+  </section>
+
+  <section id="reviews" class="wrap">
+    <h2 data-i18n="rev_h"></h2>
+    <p class="body" data-i18n="rev_p"></p>
+    <div class="quotes" id="quoteList"></div>
   </section>
 </main>
 
