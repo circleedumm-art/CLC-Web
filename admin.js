@@ -265,45 +265,88 @@ function openProgram(p = {}) {
 /* ---------- Classes ---------- */
 function openClass(c = {}) {
   if (!programs.length) { toast("Add a program first (Programs tab)."); return; }
-  const teachers = users.filter(u => u.role === "teacher" && (u.status !== "inactive" || u.id === c.teacherId));
-  sheet(c.id ? "Edit class" : "New class", `
+  
+  // Safe default values so empty sessions and fields don't cause errors
+  const defaultClass = {
+    programId: "", label: "", teacherId: "", tz: "", startDate: "", durationMonths: "",
+    venue_en: "", venue_my: "", level: "", telegramUrl: "", zoomUrl: "",
+    status: "active", public: true, ...c
+  };
+  
+  const teachers = users.filter(u => u.role === "teacher" && (u.status !== "inactive" || u.id === defaultClass.teacherId));
+
+  sheet(defaultClass.id ? "Edit class" : "New class", `
     <form id="mForm" class="group form" style="margin-top:14px" novalidate>
-      <label><span>Program</span><select name="programId">${opts(programs.map(p => [p.id, p.en]), c.programId)}</select></label>
-      <label><span>Group name</span><input name="label" placeholder="e.g. Evening A" value="${esc(c.label)}"></label>
-      <label><span>Teacher</span><select name="teacherId">${opts([["", "— none yet —"], ...teachers.map(t => [t.id, `${t.name} (${t.loginId})`])], c.teacherId)}</select></label>
-      ${sessionFields(sessionsOf(c), DAYS, SESS_L)}
-      <label><span>Time zone</span><select name="tz">${tzOptions(c.tz)}</select></label>
-      <label><span>Start date</span><input type="date" name="startDate" value="${esc(c.startDate)}"></label>
-      <label><span>Duration</span><select name="durationMonths">${opts([["", "— not set —"], ...Array.from({ length: 12 }, (_, i) => [i + 1, `${i + 1} month${i ? "s" : ""}`])], c.durationMonths || "")}</select></label>
-      <label><span>Place (English)</span><input name="venue_en" placeholder="Online via Zoom" value="${esc(c.venue_en)}"></label>
-      <label><span>Place (မြန်မာ)</span><input name="venue_my" value="${esc(c.venue_my)}"></label>
-      <label><span>Level</span><select name="level">${opts([["", "— not set —"], ...LEVELS.map(l => [l, levelText(l, "en") + " · " + LEVEL_NAME.my[l]])], c.level || "")}</select></label>
-      <label><span>Telegram link</span><input name="telegramUrl" placeholder="https://t.me/…" autocapitalize="none" value="${esc(c.telegramUrl)}"></label>
-      <label><span>Zoom link</span><input name="zoomUrl" placeholder="https://zoom.us/j/…" autocapitalize="none" value="${esc(c.zoomUrl)}"></label>
-      <label><span>Status</span><select name="status">${opts([["active", "Active"], ["completed", "Completed"]], c.status || "active")}</select></label>
-      <label><span>On website</span><select name="public">${opts([["yes", "Show on public schedule"], ["no", "Keep private"]], c.public === false ? "no" : "yes")}</select></label>
+      <label><span>Program</span><select name="programId">${opts(programs.map(p => [p.id, p.en]), defaultClass.programId)}</select></label>
+      <label><span>Group name</span><input name="label" placeholder="e.g. Evening A" value="${esc(defaultClass.label)}"></label>
+      <label><span>Teacher</span><select name="teacherId">${opts([["", "— none yet —"], ...teachers.map(t => [t.id, `${t.name} (${t.loginId})`])], defaultClass.teacherId)}</select></label>
+      ${sessionFields(sessionsOf(defaultClass), DAYS, SESS_L)}
+      <label><span>Time zone</span><select name="tz">${tzOptions(defaultClass.tz)}</select></label>
+      <label><span>Start date</span><input type="date" name="startDate" value="${esc(defaultClass.startDate)}"></label>
+      <label><span>Duration</span><select name="durationMonths">${opts([["", "— not set —"], ...Array.from({ length: 12 }, (_, i) => [i + 1, `${i + 1} month${i ? "s" : ""}`])], defaultClass.durationMonths || "")}</select></label>
+      <label><span>Place (English)</span><input name="venue_en" placeholder="Online via Zoom" value="${esc(defaultClass.venue_en)}"></label>
+      <label><span>Place (မြန်မာ)</span><input name="venue_my" value="${esc(defaultClass.venue_my)}"></label>
+      <label><span>Level</span><select name="level">${opts([["", "— not set —"], ...LEVELS.map(l => [l, levelText(l, "en") + " · " + LEVEL_NAME.my[l]])], defaultClass.level || "")}</select></label>
+      <label><span>Telegram link</span><input name="telegramUrl" placeholder="https://t.me/…" autocapitalize="none" value="${esc(defaultClass.telegramUrl)}"></label>
+      <label><span>Zoom link</span><input name="zoomUrl" placeholder="https://zoom.us/j/…" autocapitalize="none" value="${esc(defaultClass.zoomUrl)}"></label>
+      <label><span>Status</span><select name="status">${opts([["active", "Active"], ["completed", "Completed"]], defaultClass.status || "active")}</select></label>
+      <label><span>On website</span><select name="public">${opts([["yes", "Show on public schedule"], ["no", "Keep private"]], defaultClass.public === false ? "no" : "yes")}</select></label>
     </form><p class="note center" id="durNote"></p><button class="btn wide" id="mSave">Save</button>`);
+
   const updDur = () => {   // live preview of the end date and number of sessions
     const f = $("#mForm").elements, sr = readSessions(f, SESS_L);
     const i = courseInfo({ startDate: f.startDate.value, durationMonths: f.durationMonths.value, sessions: sr.list || [] });
     $("#durNote").textContent = i ? `Ends ${fmtDate(i.end, "en")} · ${i.total} sessions in total` : "";
   };
-  $("#mForm").addEventListener("input", updDur); $("#mForm").addEventListener("change", updDur); updDur();
+
+  $("#mForm").addEventListener("input", updDur); 
+  $("#mForm").addEventListener("change", updDur); 
+  updDur();
+
   $("#mSave").onclick = async () => {
     const f = $("#mForm").elements, t = users.find(u => u.id === f.teacherId.value);
     if (!!f.startDate.value !== !!f.durationMonths.value) return mErr("Set both the start date and the duration, or leave both empty.");
-    const sr = readSessions(f, SESS_L); if (sr.error) return mErr(sr.error);
-    const d = { programId: f.programId.value, label: f.label.value.trim(), teacherId: f.teacherId.value, teacherName: t ? t.name : "",
-      ...scheduleFields(sr.list, f.tz.value), venue_en: f.venue_en.value.trim(), venue_my: f.venue_my.value.trim() || f.venue_en.value.trim(),
-      status: f.status.value, public: f.public.value === "yes", level: f.level.value, startDate: f.startDate.value, durationMonths: f.durationMonths.value ? Number(f.durationMonths.value) : "", telegramUrl: safeUrl(f.telegramUrl.value), zoomUrl: safeUrl(f.zoomUrl.value) };
+    
+    const sr = readSessions(f, SESS_L); 
+    if (sr.error) return mErr(sr.error);
+
+    const d = { 
+      programId: f.programId.value, 
+      label: f.label.value.trim(), 
+      teacherId: f.teacherId.value, 
+      teacherName: t ? t.name : "",
+      ...scheduleFields(sr.list || [], f.tz.value), 
+      venue_en: f.venue_en.value.trim(), 
+      venue_my: f.venue_my.value.trim() || f.venue_en.value.trim(),
+      status: f.status.value, 
+      public: f.public.value === "yes", 
+      level: f.level.value, 
+      startDate: f.startDate.value, 
+      durationMonths: f.durationMonths.value ? Number(f.durationMonths.value) : "", 
+      telegramUrl: safeUrl(f.telegramUrl.value), 
+      zoomUrl: safeUrl(f.zoomUrl.value) 
+    };
+
     if ((f.telegramUrl.value.trim() && !d.telegramUrl) || (f.zoomUrl.value.trim() && !d.zoomUrl)) return mErr("Links must start with https://");
-    const ref = c.id ? db.collection("classes").doc(c.id) : db.collection("classes").doc(), pub = db.collection("publicSchedule").doc(ref.id);
+
+    const ref = defaultClass.id ? db.collection("classes").doc(defaultClass.id) : db.collection("classes").doc();
+    const pub = db.collection("publicSchedule").doc(ref.id);
     const b = db.batch();
-    b.set(ref, { ...d, ...(c.id ? {} : { createdAt: firebase.firestore.FieldValue.serverTimestamp() }) }, { merge: true });
+
+    b.set(ref, { ...d, ...(defaultClass.id ? {} : { createdAt: firebase.firestore.FieldValue.serverTimestamp() }) }, { merge: true });
+    
     // Only non-sensitive fields go to the public schedule (no teacher or student information).
     if (d.public && d.status === "active") b.set(pub, { programId: d.programId, label: d.label, day: d.day, time: d.time, sessions: d.sessions, tz: d.tz, venue_en: d.venue_en, venue_my: d.venue_my, level: d.level, startDate: d.startDate, durationMonths: d.durationMonths });
     else b.delete(pub);
-    try { await b.commit(); closeModal(); toast("Class saved"); } catch (e) { console.error(e); mErr("Could not save. Try again."); }
+
+    try { 
+      await b.commit(); 
+      closeModal(); 
+      toast("Class saved"); 
+    } catch (e) { 
+      console.error(e); 
+      mErr("Could not save. Try again."); 
+    }
   };
 }
 
@@ -370,120 +413,6 @@ async function openRecords(c) {
       <label><span>Score</span><input name="score" type="number" step="any" inputmode="decimal"></label>
       <label><span>Out of</span><input name="max" type="number" step="any" value="100"></label>
       <label><span>Comment</span><input name="comment"></label></form>
-    <button class="btn small wide" data-r="addGrade">Add grade</button>` : ""}`, "Close");
-  const root = $(".sheet", modal); root.scrollTop = keep;
-
-  root.onclick = async e => {
-    const b = e.target.closest("[data-r]"); if (!b) return;
-    const a = b.dataset.r, id = b.dataset.id, FV = firebase.firestore.FieldValue;
-    try {
-      if (a === "addExam") {
-        const f = $("#exForm").elements;
-        if (!f.title.value.trim() || !f.date.value) return mErr("Exam needs a title and a date.");
-        if (f.link.value.trim() && !safeUrl(f.link.value)) return mErr("Links must start with https://");
-        await db.collection("exams").add({ classId: c.id, title: f.title.value.trim(), date: f.date.value, time: f.time.value.trim(), venue: f.venue.value.trim(), link: safeUrl(f.link.value) });
-      }
-      if (a === "delExam") await db.collection("exams").doc(id).delete();
-      if (a === "addGrade") {
-        const f = $("#grForm").elements, m = mem.find(x => x.studentId === f.student.value), score = parseFloat(f.score.value), max = parseFloat(f.max.value);
-        if (!f.title.value.trim() || isNaN(score) || isNaN(max) || max <= 0 || score < 0 || score > max) return mErr("Enter a title and a score between 0 and the maximum.");
-        await db.collection("grades").add({ classId: c.id, studentId: m.studentId, studentName: m.studentName, title: f.title.value.trim(), score, max, comment: f.comment.value.trim(), createdAt: FV.serverTimestamp() });
-      }
-      if (a === "delGrade") await db.collection("grades").doc(id).delete();
-      if (a === "complete") {
-        const certNo = `CLC-${new Date().getFullYear()}-${Math.floor(10000 + Math.random() * 90000)}`;
-        await db.collection("memberships").doc(id).update({ status: "completed", completedAt: FV.serverTimestamp(), certNo });
-        Object.assign(members.find(m => m.id === id), { status: "completed", certNo });
-      }
-      if (a === "reopen") {
-        await db.collection("memberships").doc(id).update({ status: "enrolled", completedAt: FV.delete(), certNo: FV.delete() });
-        Object.assign(members.find(m => m.id === id), { status: "enrolled", certNo: "" });
-      }
-      openRecords(c);
-    } catch (err) { console.error(err); mErr("Could not save. Try again."); }
-  };
-}
-
-/* ---------- Preview a student or teacher profile ---------- */
-async function openPreview(u) {
-  if (!u) return;
-  const row = (k, v) => v ? `<li><span>${k}</span><b>${esc(v)}</b></li>` : "";
-  const info = `<ul class="group info" style="margin-top:14px">${row("Name", u.name)}${row("Login ID", u.loginId)}${row("Email", u.email)}${row("Phone", u.phone)}${row("Location", u.location)}${row("Status", u.status || "active")}${row("Joined", when(u.createdAt))}</ul>
-    ${u.about ? `<p class="sub">About</p><p class="body">${esc(u.about).replace(/\n/g, "<br>")}</p>` : ""}`;
-  let extra = "";
-  if (u.role === "student") {
-    const en = await db.collection("attendanceEntries").where("studentId", "==", u.id).get();
-    const entries = en.docs.map(d => d.data());
-    const mine = members.filter(m => m.studentId === u.id).map(m => ({ m, c: classes.find(x => x.id === m.classId) })).filter(r => r.c);
-    extra = `<p class="sub">Classes</p><ul class="group">${mine.map(({ m, c }) => { const s = attStats(entries.filter(x => x.classId === c.id).map(x => x.status));
-      return `<li class="item"><div class="grow"><b>${esc(progName(c.programId))}${c.label ? " · " + esc(c.label) : ""}</b><small>${esc(scheduleLine(c, DAYS))} · ${esc(c.teacherName || "No teacher")}</small>
-        <small>Attendance: ${s.pct === null ? "no records yet" : s.pct + "% (" + s.present + " present, " + s.late + " late, " + s.absent + " absent, " + s.excused + " excused)"}</small></div>
-        <span class="pill s-${m.status === "completed" ? "enrolled" : "active"}">${esc(m.status || "enrolled")}</span></li>`; }).join("") || `<li class="empty"><div>Not in any class yet.</div></li>`}</ul>`;
-  } else {
-    const pf = await db.collection("teacherProfiles").doc(u.id).get();
-    const p = pf.exists ? pf.data() : {};
-    const mine = classes.filter(c => c.teacherId === u.id);
-    extra = `<p class="sub">Intro video</p>${safeUrl(p.introVideo) ? videoBlock(p.introVideo, "▶ Open video") : `<p class="note">No intro video yet.</p>`}
-      <p class="sub">Classes taught</p><ul class="group">${mine.map(c => { const n = members.filter(m => m.classId === c.id).length;
-      return `<li class="item"><div class="grow"><b>${esc(progName(c.programId))}${c.label ? " · " + esc(c.label) : ""}</b><small>${esc(scheduleLine(c, DAYS))}${c.level ? " · " + esc(levelText(c.level, "en")) : ""}</small><small>${n} student${n === 1 ? "" : "s"}</small></div></li>`; }).join("") || `<li class="empty"><div>No classes assigned.</div></li>`}</ul>`;
-  }
-  sheet(`${u.role === "teacher" ? "Teacher" : "Student"} profile`, info + extra, "Close");
-}
-
-/* ---------- Reply to a report ---------- */
-function openReply(r) {
-  if (!r) return;
-  sheet("Reply to report", `<p class="note center">${esc(r.fromName)} · ${esc(r.subject || "")}</p><p class="body" style="margin-top:8px">${esc(r.text)}</p>
-    <form id="rpf" class="group form" novalidate><label><textarea name="reply" rows="4" maxlength="1000" style="text-align:left" placeholder="Your reply">${esc(r.adminReply)}</textarea></label></form>
-    <button class="btn wide" id="mSave">Save reply and mark resolved</button>`);
-  $("#mSave").onclick = async () => {
-    const reply = $("#rpf").elements.reply.value.trim(); if (!reply) return mErr("Write a reply first.");
-    try { await db.collection("reports").doc(r.id).update({ adminReply: reply, status: "resolved", repliedAt: firebase.firestore.FieldValue.serverTimestamp() }); closeModal(); toast("Reply saved"); }
-    catch (e) { console.error(e); mErr("Could not save. Try again."); }
-  };
-}
-
-/* ---------- Switch between Programs / Videos / Reviews on the Site tab ---------- */
-$("#subseg").addEventListener("click", e => { const b = e.target.closest("[data-sub]"); if (b) { siteTab = b.dataset.sub; render(); } });
-
-/* ---------- Scholarship request: read the essay and record your decision ---------- */
-function openEssay(e) {
-  if (!e) return;
-  sheet("Scholarship request", `<p class="note center">${esc(e.name)} · ${e.scholarship === "full" ? "100%" : "50%"} requested · ${esc(e.course)}</p>
-    <p class="body" style="white-space:pre-wrap;margin-top:12px;color:var(--text)">${esc(e.essay)}</p>
-    <p class="note">This is private. Only you can read it.</p>
-    <div class="acts" style="justify-content:center;margin-top:10px">
-      <button class="btn small" data-d="full">Grant 100%</button><button class="btn small" data-d="half">Grant 50%</button>
-      <button class="btn small danger" data-d="declined">Decline</button><button class="btn small ghost" data-d="">Clear</button></div>`, "Close");
-  $$("[data-d]", modal).forEach(b => b.onclick = async () => {
-    try { await db.collection("enrolments").doc(e.id).update({ scholarshipDecision: b.dataset.d }); closeModal(); toast("Decision saved"); }
-    catch (err) { console.error(err); mErr("Could not save. Try again."); }
-  });
-}
-
-/* ---------- "How to use" video links ---------- */
-function openGuides() {
-  sheet("How-to video links", `<p class="note center">Paste a link to a short tutorial video for each group (YouTube, Facebook, Telegram…). Leave empty to hide it.</p>
-    <form id="mForm" class="group form" style="margin-top:12px" novalidate>
-      <label><span>Visitors</span><input name="guest" placeholder="https://" autocapitalize="none" value="${esc(guides.guest)}"></label>
-      <label><span>Students</span><input name="student" placeholder="https://" autocapitalize="none" value="${esc(guides.student)}"></label>
-      <label><span>Teachers</span><input name="teacher" placeholder="https://" autocapitalize="none" value="${esc(guides.teacher)}"></label></form>
-    <button class="btn wide" id="mSave">Save</button>`);
-  $("#mSave").onclick = async () => {
-    const f = $("#mForm").elements, d = {};
-    for (const k of ["guest", "student", "teacher"]) { const v = f[k].value.trim(); if (v && !safeUrl(v)) return mErr("Links must start with https://"); d[k] = v ? safeUrl(v) : ""; }
-    try { await db.collection("siteContent").doc("guides").set({ ...d, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }); closeModal(); toast("Saved"); }
-    catch (e) { console.error(e); mErr("Could not save. Try again."); }
-  };
-}
-
-/* ---------- Publish a student review as a testimonial (first name only) ---------- */
-async function publishReview(r) {
-  if (!r) return;
-  const name = prompt("Name to show on the website (first name is best):", (r.studentName || "").split(" ")[0]);
-  if (name === null) return;
-  const b = db.batch();
-  b.set(db.collection("testimonials").doc(r.id), { name: name.trim() || "A CLC student", programId: r.programId || "", rating: r.rating, text: r.text, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
-  b.update(db.collection("reviews").doc(r.id), { status: "approved" });
-  await b.commit(); toast("Published on the website");
+    <button class="btn small wide" data-r="addGrade">Add grade</button>` : ""}`);
+  if (keep && $(".sheet", modal)) $(".sheet", modal).scrollTop = keep;
 }
