@@ -97,9 +97,46 @@ function sessionsOf(c) {
   if (list.length) return list.slice().sort((a, b) => a.day - b.day || String(a.start || "").localeCompare(String(b.start || "")));
   return Number.isInteger(c.day) ? [{ day: c.day, time: c.time }] : [];
 }
-const sessionTime = s => s.start && s.end ? `${fmt12(s.start)} – ${fmt12(s.end)}` : (s.time || "");
+const sessionTime = (s, lang) => s.start && s.end ? `${fmt12(s.start)} ${lang === "en" ? "to" : "–"} ${fmt12(s.end)}` : (s.time || "");
 const firstKey = c => { const s = sessionsOf(c)[0]; return s ? s.day * 10000 + (parseInt(String(s.start || "0:0").replace(":", ""), 10) || 0) : 99999; };
-const scheduleLine = (c, days) => sessionsOf(c).map(s => `${days[s.day]} ${sessionTime(s)}`.trim()).join(" · ");
+// One line per class: sessions with the same time are joined, e.g. "Tuesday & Thursday 8:00 PM to 9:45 PM".
+function whenText(c, days, lang) {
+  const groups = [];
+  sessionsOf(c).forEach(s => { const key = sessionTime(s, lang), g = groups.find(x => x.key === key); if (g) g.days.push(s.day); else groups.push({ key, days: [s.day] }); });
+  const join = d => d.length < 2 ? d[0] : lang === "my" ? d.join(" နှင့် ") : d.slice(0, -1).join(", ") + " & " + d[d.length - 1];
+  return groups.map(g => `${join(g.days.map(d => days[d]))} ${g.key}`.trim()).join(" · ");
+}
+const scheduleLine = (c, days, lang) => whenText(c, days, lang || "en");
+
+/* ---------- Course duration: start date + months -> end date and number of sessions ---------- */
+const isoToUTC = iso => { const [y, m, d] = String(iso).split("-").map(Number); return Date.UTC(y, m - 1, d); };
+const utcToISO = ms => new Date(ms).toISOString().slice(0, 10);
+function addMonthsISO(iso, n) {
+  const [y, m, d] = iso.split("-").map(Number), total = (m - 1) + n, ny = y + Math.floor(total / 12), nm = total % 12;
+  return utcToISO(Date.UTC(ny, nm, Math.min(d, new Date(Date.UTC(ny, nm + 1, 0)).getUTCDate())));
+}
+function courseInfo(c) {
+  if (!c.startDate || !c.durationMonths) return null;
+  const months = Number(c.durationMonths), end = utcToISO(isoToUTC(addMonthsISO(c.startDate, months)) - 864e5);
+  const days = new Set(sessionsOf(c).map(s => s.day)); let total = 0;
+  for (let t = isoToUTC(c.startDate); t <= isoToUTC(end); t += 864e5) if (days.has((new Date(t).getUTCDay() + 6) % 7)) total++;
+  return { start: c.startDate, end, months, total };
+}
+const fmtDate = (iso, lang) => new Date(isoToUTC(iso)).toLocaleDateString(lang === "my" ? "my-MM" : "en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+function durationText(c, lang) {
+  const i = courseInfo(c); if (!i) return "";
+  return lang === "my" ? `${i.months} လ · ${i.total} ကြိမ် · ${fmtDate(i.start, lang)} – ${fmtDate(i.end, lang)}`
+    : `${i.months} month${i.months === 1 ? "" : "s"} · ${i.total} sessions · ${fmtDate(i.start, lang)} – ${fmtDate(i.end, lang)}`;
+}
+
+/* ---------- Scholarship essay: 250 words, or 10 sentences when written in Burmese ---------- */
+function essayStats(text) {
+  const letters = (text.match(/\p{L}/gu) || []).length, my = (text.match(/[\u1000-\u109F]/g) || []).length;
+  if (letters && my / letters > 0.3) return { unit: "sentences", n: text.split(/[။.!?\n]+/).map(x => x.trim()).filter(Boolean).length, min: 3, max: 10 };
+  return { unit: "words", n: text.trim() ? text.trim().split(/\s+/).length : 0, min: 30, max: 250 };
+}
+const stars = n => "★".repeat(n) + "☆".repeat(5 - n);
+
 
 function offsetMin(tz, d) {   // minutes that `tz` is ahead of UTC at instant d
   const p = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: tz, hourCycle: "h23", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric" })
@@ -175,10 +212,10 @@ const COMMON_T = {
     reportTitle: "Report to admin", reportHelp: "Send a problem, suggestion or question to the CLC admin. This is not instant chat – the admin replies when available.",
     subject: "Subject", message: "Message", sendReport: "Send report", noReports: "No reports yet.", reportSent: "Report sent", adminReply: "Admin reply", resolved: "Resolved", open: "Open",
     session: "Session", optional: "optional", none: "— none —", needTimes: "Each session needs a day, a start time and an end time.", sameTime: "Start and end time cannot be the same.",
-    tz: "Time zone", yourTime: "Your time", overall: "Overall", gradeLbl: "Grade", tg: "Telegram group", zoom: "Join Zoom", materials: "Class materials", level: "Level", present: "Present", late: "Late", absent: "Absent", excused: "Excused", attendance: "Attendance", teacher: "Teacher" },
+    help: "How to use this website", watch: "Watch video", duration: "Course length", tz: "Time zone", yourTime: "Your time", overall: "Overall", gradeLbl: "Grade", tg: "Telegram group", zoom: "Join Zoom", materials: "Class materials", level: "Level", present: "Present", late: "Late", absent: "Absent", excused: "Excused", attendance: "Attendance", teacher: "Teacher" },
   my: { noMsgs: "မက်ဆေ့ချ် မရှိသေးပါ။", typeMsg: "မက်ဆေ့ချ် ရေးပါ…", send: "ပို့မည်", close: "ပိတ်မည်", fail: "တစ်ခုခု မှားသွားပါသည်။ ပြန်ကြိုးစားပါ။",
     reportTitle: "အက်ဒမင်သို့ အစီရင်ခံရန်", reportHelp: "ပြဿနာ၊ အကြံပြုချက် သို့မဟုတ် မေးခွန်းကို CLC အက်ဒမင်ထံ ပို့ပါ။ ချက်ချင်း စကားပြောခြင်း မဟုတ်ပါ၊ အက်ဒမင် အားလပ်သည့်အခါ ပြန်ကြားပါမည်။",
     subject: "ခေါင်းစဉ်", message: "စာသား", sendReport: "ပို့မည်", noReports: "ပို့ထားသော အစီရင်ခံစာ မရှိသေးပါ။", reportSent: "ပို့ပြီးပါပြီ", adminReply: "အက်ဒမင် အဖြေ", resolved: "ဖြေရှင်းပြီး", open: "စောင့်ဆိုင်းနေ",
     session: "အတန်းချိန်", optional: "ရွေးချယ်ခွင့်", none: "— မရှိ —", needTimes: "အတန်းချိန်တိုင်းတွင် နေ့၊ စတင်ချိန်နှင့် ပြီးဆုံးချိန် လိုအပ်ပါသည်။", sameTime: "စတင်ချိန်နှင့် ပြီးဆုံးချိန် မတူရပါ။",
-    tz: "အချိန်ဇုန်", yourTime: "သင့်ဒေသအချိန်", overall: "စုစုပေါင်း", gradeLbl: "အမှတ်", tg: "Telegram အဖွဲ့", zoom: "Zoom ဝင်ရန်", materials: "သင်ခန်းစာ ဖိုင်များ", level: "အဆင့်", present: "တက်ရောက်", late: "နောက်ကျ", absent: "ပျက်ကွက်", excused: "ခွင့်ယူ", attendance: "တက်ရောက်မှု", teacher: "ဆရာ" }
+    help: "ဝက်ဘ်ဆိုက် အသုံးပြုပုံ", watch: "ဗီဒီယို ကြည့်မည်", duration: "သင်တန်းကာလ", tz: "အချိန်ဇုန်", yourTime: "သင့်ဒေသအချိန်", overall: "စုစုပေါင်း", gradeLbl: "အမှတ်", tg: "Telegram အဖွဲ့", zoom: "Zoom ဝင်ရန်", materials: "သင်ခန်းစာ ဖိုင်များ", level: "အဆင့်", present: "တက်ရောက်", late: "နောက်ကျ", absent: "ပျက်ကွက်", excused: "ခွင့်ယူ", attendance: "တက်ရောက်မှု", teacher: "ဆရာ" }
 };
