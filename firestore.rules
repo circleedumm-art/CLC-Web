@@ -23,7 +23,10 @@ service cloud.firestore {
     }
     // Teachers may change these fields on their own classes (links stay private to the class).
     function classFieldsOnly() {
-      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['day', 'time', 'sessions', 'tz', 'venue_en', 'venue_my', 'level', 'telegramUrl', 'zoomUrl', 'updatedAt']);
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['day', 'time', 'sessions', 'tz', 'venue_en', 'venue_my', 'level', 'telegramUrl', 'zoomUrl', 'updatedAt'])
+        && httpsOrEmpty(request.resource.data.get('telegramUrl', ''))
+        && httpsOrEmpty(request.resource.data.get('zoomUrl', ''))
+        && request.resource.data.get('level', '') in ['', 'A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
     }
     // Only these fields are ever public.
     function publicFieldsOnly() {
@@ -37,6 +40,7 @@ service cloud.firestore {
       allow create: if request.resource.data.keys().hasOnly(['name','email','course','note','status','createdAt','scholarship','essay'])
         && request.resource.data.status == 'pending'
         && request.resource.data.name is string && request.resource.data.name.size() <= 100
+        && request.resource.data.course is string && request.resource.data.course.size() <= 100
         && request.resource.data.email is string && request.resource.data.email.size() <= 150
         && request.resource.data.note is string && request.resource.data.note.size() <= 500
         && request.resource.data.get('scholarship', 'none') in ['none', 'half', 'full']
@@ -107,6 +111,8 @@ service cloud.firestore {
       allow create, update: if teaches(request.resource.data.classId)
         && request.resource.data.keys().hasOnly(['classId','date','studentId','status'])
         && request.resource.data.status in ['present','late','absent','excused']
+        && request.resource.data.date is string && request.resource.data.date.size() == 10
+        && exists(/databases/$(database)/documents/memberships/$(request.resource.data.classId + '_' + request.resource.data.studentId))
         && id == request.resource.data.classId + '_' + request.resource.data.date + '_' + request.resource.data.studentId;
     }
 
