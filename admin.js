@@ -266,14 +266,13 @@ function openProgram(p = {}) {
 function openClass(c = {}) {
   if (!programs.length) { toast("Add a program first (Programs tab)."); return; }
 
-  // Ensure default sessions exist so new classes never start empty/invalid
   const defaultClass = {
     programId: "", label: "", teacherId: "", tz: "", startDate: "", durationMonths: "",
     venue_en: "", venue_my: "", level: "", telegramUrl: "", zoomUrl: "",
     status: "active", public: true, ...c
   };
 
-  // If no sessions exist for this class, provide a default active session row
+  // Ensure default sessions exist so new classes don't start uninitialized/invalid
   if (!defaultClass.sessions || !defaultClass.sessions.length) {
     defaultClass.sessions = [{ day: "Monday", start: "09:00", end: "10:00", active: true }];
   }
@@ -369,6 +368,7 @@ function openClass(c = {}) {
     }
   };
 }
+
 async function deleteClass(c) {
   if (!c || !confirm("Delete this class and remove its students from it?")) return;
   const b = db.batch();
@@ -380,6 +380,7 @@ async function deleteClass(c) {
   for (let i = 0; i < refs.length; i += 400) { const bb = db.batch(); refs.slice(i, i + 400).forEach(r => bb.delete(r)); await bb.commit(); }
   toast("Class deleted");
 }
+
 /* ---------- Students in a class ---------- */
 function openMembers(c) {
   const cur = new Set(members.filter(m => m.classId === c.id).map(m => m.studentId));
@@ -400,7 +401,10 @@ function openMembers(c) {
 /* ---------- Exams, grades and completion for one class ---------- */
 async function openRecords(c) {
   const keep = $(".sheet", modal) ? $(".sheet", modal).scrollTop : 0;
-  const [ex, gr] = await Promise.all([db.collection("exams").where("classId", "==", c.id).get(), db.collection("grades").where("classId", "==", c.id).get()]);
+  const [ex, gr] = await Promise.all([
+    db.collection("exams").where("classId", "==", c.id).get(),
+    db.collection("grades").where("classId", "==", c.id).get()
+  ]);
   const exams = ex.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => String(a.date).localeCompare(String(b.date)));
   const grades = gr.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.studentName || "").localeCompare(b.studentName || ""));
   const mem = members.filter(m => m.classId === c.id).sort((a, b) => (a.loginId || "").localeCompare(b.loginId || ""));
@@ -432,5 +436,80 @@ async function openRecords(c) {
       <label><span>Out of</span><input name="max" type="number" step="any" value="100"></label>
       <label><span>Comment</span><input name="comment"></label></form>
     <button class="btn small wide" data-r="addGrade">Add grade</button>` : ""}`);
+
   if (keep && $(".sheet", modal)) $(".sheet", modal).scrollTop = keep;
+
+  // Handle all actions inside the Records sheet
+  $(".sheet", modal).onclick = async e => {
+    const btn = e.target.closest("[data-r]");
+    if (!btn) return;
+    const action = btn.dataset.r;
+    const id = btn.dataset.id;
+
+    try {
+      if (action === "complete") {
+        const certNo = prompt("Enter certificate number (optional):", "") || "";
+        await db.collection("memberships").doc(id).update({ status: "completed", certNo: certNo.trim() });
+        toast("Student marked as completed");
+        openRecords(c);
+      }
+      if (action === "reopen") {
+        await db.collection("memberships").doc(id).update({ status: "enrolled", certNo: "" });
+        toast("Student status reopened");
+        openRecords(c);
+      }
+      if (action === "addExam") {
+        const f = $("#exForm").elements;
+        const title = f.title.value.trim();
+        if (!title) return mErr("Please enter the exam title.");
+        await db.collection("exams").add({
+          classId: c.id,
+          title,
+          date: f.date.value,
+          time: f.time.value.trim(),
+          venue: f.venue.value.trim(),
+          link: safeUrl(f.link.value),
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        toast("Exam added");
+        openRecords(c);
+      }
+      if (action === "delExam" && confirm("Delete this exam?")) {
+        await db.collection("exams").doc(id).delete();
+        toast("Exam deleted");
+        openRecords(c);
+      }
+      if (action === "addGrade") {
+        const f = $("#grForm").elements;
+        const studentId = f.student.value;
+        const title = f.title.value.trim();
+        const score = Number(f.score.value);
+        const max = Number(f.max.value) || 100;
+        if (!studentId) return mErr("Please select a student.");
+        if (!title) return mErr("Please enter a title for the grade.");
+        if (isNaN(score)) return mErr("Please enter a valid score.");
+        const m = mem.find(x => x.studentId === studentId);
+        await db.collection("grades").add({
+          classId: c.id,
+          studentId,
+          studentName: m ? m.studentName : "",
+          title,
+          score,
+          max,
+          comment: f.comment.value.trim(),
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        toast("Grade added");
+        openRecords(c);
+      }
+      if (action === "delGrade" && confirm("Delete this grade?")) {
+        await db.collection("grades").doc(id).delete();
+        toast("Grade deleted");
+        openRecords(c);
+      }
+    } catch (err) {
+      console.error(err);
+      mErr("Could not update record. Try again.");
+    }
+  };
 }
