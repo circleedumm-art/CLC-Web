@@ -66,6 +66,34 @@ function threadSheet(modal, { title, list, me, t, onSend, onClose }) {
   };
 }
 
+/* ---------- Announcements ----------
+   audience: "all" | "students" | "teachers" | "class" (with classId). publishAt lets the admin schedule one for later:
+   people only see an announcement once publishAt has passed. */
+const annTimeText = (ms, lang) => ms ? new Date(ms).toLocaleString(lang === "my" ? "my-MM" : "en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
+const annIsLive = (a, now = Date.now()) => !ts(a.publishAt) || ts(a.publishAt) <= now;
+const annKey = uid => "clc_ann_seen_" + uid;
+const annLast = uid => { try { return Number(localStorage.getItem(annKey(uid)) || 0); } catch { return 0; } };
+const annUnseen = (uid, list) => { const last = annLast(uid); return list.filter(a => ts(a.publishAt) > last).length; };
+const annMarkSeen = (uid, list) => { try { localStorage.setItem(annKey(uid), String(Math.max(0, ...list.map(a => ts(a.publishAt))))); } catch {} };
+// Everything this student/teacher is allowed to see, newest first. One simple query per audience (the rules check each one).
+async function loadAnnouncements(db, me, classIds) {
+  const col = db.collection("announcements");
+  const qs = [col.where("audience", "==", "all"), col.where("audience", "==", me.role === "teacher" ? "teachers" : "students")];
+  (classIds || []).forEach(id => qs.push(col.where("audience", "==", "class").where("classId", "==", id)));
+  if (me.role === "teacher") qs.push(col.where("fromUid", "==", me.id));   // the teacher's own posts
+  const snaps = await Promise.all(qs.map(q => q.get().catch(e => { console.error(e); return null; })));
+  const map = new Map();
+  snaps.forEach(s => s && s.docs.forEach(d => map.set(d.id, { id: d.id, ...d.data() })));
+  return [...map.values()].sort((a, b) => ts(b.publishAt) - ts(a.publishAt));
+}
+function annItem(a, t, lang, seenAt, canDelete) {
+  const who = a.fromRole === "admin" ? t("annAdmin") : (a.fromName || t("annTeacher"));
+  return `<li class="item"><div class="grow"><b>${_esc(a.title)}</b><small>${_esc(who)} · ${_esc(annTimeText(ts(a.publishAt), lang))}</small>
+    <small style="color:var(--text);white-space:pre-wrap">${_esc(a.text)}</small></div>
+    ${ts(a.publishAt) > seenAt ? `<span class="pill s-pending">${_esc(t("annNew"))}</span>` : ""}
+    ${canDelete ? `<button class="btn small danger" data-ann-del="${_esc(a.id)}">${_esc(t("annDelete"))}</button>` : ""}</li>`;
+}
+
 /* ---------- Report to admin ---------- */
 function reportBlock(t, reports) {
   const rows = reports.slice().sort((a, b) => ts(b.createdAt) - ts(a.createdAt)).map(r => `<li class="item"><div class="grow"><b>${_esc(r.subject || "—")}</b><small>${_esc(r.text)}</small>
@@ -187,13 +215,20 @@ function readSessions(f, L) {
   for (let i = 0; i < 3; i++) {
     const d = f["sd" + i].value, s = f["ss" + i].value, e = f["se" + i].value;
     if (i > 0 && d === "") continue;
-    if (d === "" || !s || !e) return { error: L.needTimes };
+    if (d === "" || !s || !e) return { error: `${L.needTimes} (${L.session || "#"} ${i + 1})` };
     if (s === e) return { error: L.sameTime };
     list.push({ day: Number(d), start: s, end: e });
   }
   list.sort((a, b) => a.day - b.day || a.start.localeCompare(b.start));
   return { list };
 }
+// When a 2nd or 3rd session gets a day, copy session 1's times into it if its times are still empty (most classes meet at the same time).
+document.addEventListener("change", e => {
+  const el = e.target, m = el && el.name && /^sd([12])$/.exec(el.name);
+  if (!m || !el.value || !el.form) return;
+  const f = el.form.elements, i = m[1];
+  if (!f["ss" + i].value && !f["se" + i].value && f.ss0 && f.se0) { f["ss" + i].value = f.ss0.value; f["se" + i].value = f.se0.value; }
+});
 // Saved with the class; day/time keep the first session for older code.
 const scheduleFields = (list, tz) => ({ sessions: list, tz, day: list[0].day, time: sessionTime(list[0]) });
 
@@ -212,10 +247,16 @@ const COMMON_T = {
     reportTitle: "Report to admin", reportHelp: "Send a problem, suggestion or question to the CLC admin. This is not instant chat – the admin replies when available.",
     subject: "Subject", message: "Message", sendReport: "Send report", noReports: "No reports yet.", reportSent: "Report sent", adminReply: "Admin reply", resolved: "Resolved", open: "Open",
     session: "Session", optional: "optional", none: "— none —", needTimes: "Each session needs a day, a start time and an end time.", sameTime: "Start and end time cannot be the same.",
-    help: "How to use this website", watch: "Watch video", duration: "Course length", tz: "Time zone", yourTime: "Your time", overall: "Overall", gradeLbl: "Grade", tg: "Telegram group", zoom: "Join Zoom", materials: "Class materials", level: "Level", present: "Present", late: "Late", absent: "Absent", excused: "Excused", attendance: "Attendance", teacher: "Teacher" },
+    help: "How to use this website", watch: "Watch video", duration: "Course length", tz: "Time zone", yourTime: "Your time", overall: "Overall", gradeLbl: "Grade", tg: "Telegram group", zoom: "Join Zoom", materials: "Class materials", level: "Level", present: "Present", late: "Late", absent: "Absent", excused: "Excused", attendance: "Attendance", teacher: "Teacher",
+    announcements: "Announcements", annNone: "No announcements yet.", annNew: "New", annAdmin: "CLC Admin", annTeacher: "Teacher", annTitleLbl: "Title", annMsgLbl: "Message",
+    annWrite: "Write an announcement", annHelp: "Every CLC student will see announcements you send here.", annSend: "Send to all students", annSent: "Announcement sent",
+    annMine: "Announcements I sent", annReceived: "From CLC", annDelete: "Delete", annConfirmDel: "Delete this announcement?", annNeed: "Please write a title and a message." },
   my: { noMsgs: "မက်ဆေ့ချ် မရှိသေးပါ။", typeMsg: "မက်ဆေ့ချ် ရေးပါ…", send: "ပို့မည်", close: "ပိတ်မည်", fail: "တစ်ခုခု မှားသွားပါသည်။ ပြန်ကြိုးစားပါ။",
     reportTitle: "အက်ဒမင်သို့ အစီရင်ခံရန်", reportHelp: "ပြဿနာ၊ အကြံပြုချက် သို့မဟုတ် မေးခွန်းကို CLC အက်ဒမင်ထံ ပို့ပါ။ ချက်ချင်း စကားပြောခြင်း မဟုတ်ပါ၊ အက်ဒမင် အားလပ်သည့်အခါ ပြန်ကြားပါမည်။",
     subject: "ခေါင်းစဉ်", message: "စာသား", sendReport: "ပို့မည်", noReports: "ပို့ထားသော အစီရင်ခံစာ မရှိသေးပါ။", reportSent: "ပို့ပြီးပါပြီ", adminReply: "အက်ဒမင် အဖြေ", resolved: "ဖြေရှင်းပြီး", open: "စောင့်ဆိုင်းနေ",
     session: "အတန်းချိန်", optional: "ရွေးချယ်ခွင့်", none: "— မရှိ —", needTimes: "အတန်းချိန်တိုင်းတွင် နေ့၊ စတင်ချိန်နှင့် ပြီးဆုံးချိန် လိုအပ်ပါသည်။", sameTime: "စတင်ချိန်နှင့် ပြီးဆုံးချိန် မတူရပါ။",
-    help: "ဝက်ဘ်ဆိုက် အသုံးပြုပုံ", watch: "ဗီဒီယို ကြည့်မည်", duration: "သင်တန်းကာလ", tz: "အချိန်ဇုန်", yourTime: "သင့်ဒေသအချိန်", overall: "စုစုပေါင်း", gradeLbl: "အမှတ်", tg: "Telegram အဖွဲ့", zoom: "Zoom ဝင်ရန်", materials: "သင်ခန်းစာ ဖိုင်များ", level: "အဆင့်", present: "တက်ရောက်", late: "နောက်ကျ", absent: "ပျက်ကွက်", excused: "ခွင့်ယူ", attendance: "တက်ရောက်မှု", teacher: "ဆရာ" }
+    help: "ဝက်ဘ်ဆိုက် အသုံးပြုပုံ", watch: "ဗီဒီယို ကြည့်မည်", duration: "သင်တန်းကာလ", tz: "အချိန်ဇုန်", yourTime: "သင့်ဒေသအချိန်", overall: "စုစုပေါင်း", gradeLbl: "အမှတ်", tg: "Telegram အဖွဲ့", zoom: "Zoom ဝင်ရန်", materials: "သင်ခန်းစာ ဖိုင်များ", level: "အဆင့်", present: "တက်ရောက်", late: "နောက်ကျ", absent: "ပျက်ကွက်", excused: "ခွင့်ယူ", attendance: "တက်ရောက်မှု", teacher: "ဆရာ",
+    announcements: "ကြေညာချက်များ", annNone: "ကြေညာချက် မရှိသေးပါ။", annNew: "အသစ်", annAdmin: "CLC အက်ဒမင်", annTeacher: "ဆရာ", annTitleLbl: "ခေါင်းစဉ်", annMsgLbl: "စာသား",
+    annWrite: "ကြေညာချက် ရေးရန်", annHelp: "ဤနေရာမှ ပို့သော ကြေညာချက်ကို CLC ကျောင်းသားအားလုံး မြင်ရပါမည်။", annSend: "ကျောင်းသားအားလုံးသို့ ပို့မည်", annSent: "ပို့ပြီးပါပြီ",
+    annMine: "ကျွန်ုပ်ပို့ထားသော ကြေညာချက်များ", annReceived: "CLC မှ", annDelete: "ဖျက်မည်", annConfirmDel: "ဤကြေညာချက်ကို ဖျက်မလား။", annNeed: "ခေါင်းစဉ်နှင့် စာသား ရေးပါ။" }
 };
