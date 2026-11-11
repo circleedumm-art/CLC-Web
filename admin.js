@@ -9,7 +9,7 @@ const store = { get: k => { try { return localStorage.getItem(k); } catch { retu
 
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth(), db = firebase.firestore();
-let enrols = [], users = [], programs = [], classes = [], members = [], reports = [], started = false;
+let enrols = [], users = [], programs = [], classes = [], members = [], reports = [], anns = [], started = false;
 
 /* ---------- Theme ---------- */
 function setTheme(t) { document.documentElement.dataset.theme = t; $('meta[name="theme-color"]').content = t === "dark" ? "#000000" : "#F2F2F7"; }
@@ -35,6 +35,7 @@ function start() {
   db.collection("classes").onSnapshot(s => { classes = s.docs.map(d => ({ id: d.id, ...d.data() })); render(); }, fail);
   db.collection("reviews").onSnapshot(s => { reviews = s.docs.map(d => ({ id: d.id, ...d.data() })); render(); }, fail);
   db.collection("siteContent").doc("guides").onSnapshot(d => { guides = d.exists ? d.data() : {}; render(); }, fail);
+  db.collection("announcements").onSnapshot(s => { anns = s.docs.map(d => ({ id: d.id, ...d.data() })); render(); }, fail);
   db.collection("reports").onSnapshot(s => { reports = s.docs.map(d => ({ id: d.id, ...d.data() })); render(); }, fail);
   db.collection("memberships").onSnapshot(s => { members = s.docs.map(d => ({ id: d.id, ...d.data() })); render(); }, fail);
 }
@@ -44,8 +45,8 @@ const mail = (to, subject, body) => `mailto:${encodeURIComponent(to)}?subject=${
 const when = x => x && x.toDate ? x.toDate().toLocaleDateString() : "";
 
 const SESS_L = { session: "Session", optional: "optional", none: "— none —", needTimes: "Each session needs a day, a start time and an end time.", sameTime: "Start and end time cannot be the same." };
-const VIEWS = { enrolments: "Enrolments", students: "Students", teachers: "Teachers", classes: "Classes", site: "Site", reports: "Reports" };
-const ADD = { students: "Add student", teachers: "Add teacher", classes: "Add class", site: "Add program" };
+const VIEWS = { enrolments: "Enrolments", students: "Students", teachers: "Teachers", classes: "Classes", announcements: "Announcements", site: "Site", reports: "Reports" };
+const ADD = { students: "Add student", teachers: "Add teacher", classes: "Add class", announcements: "Add announcement", site: "Add program" };
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 let siteTab = "programs", guides = {}, reviews = [];
 const view = () => { let v = (location.hash || "#enrolments").slice(1); if (v === "programs") v = "site"; return VIEWS[v] ? v : "enrolments"; };
@@ -104,6 +105,16 @@ function render() {
           <span class="pill s-${st === "completed" ? "enrolled" : "active"}">${esc(st)}</span>
           <div class="acts">${btn("members", "Students")}${btn("records", "Exams & grades")}${btn("editClass", "Edit")}${btn("delClass", "Delete", "danger")}</div></li>`;
       }).join("");
+  } else if (v === "announcements") {
+    empty = "No announcements yet. Tap “Add announcement” to write one.";
+    const now = Date.now();
+    html = anns.slice().sort((a, b) => ts(b.publishAt) - ts(a.publishAt)).filter(a => hit({ name: a.title, email: a.text, course: a.fromName })).map(a => {
+      const live = !ts(a.publishAt) || ts(a.publishAt) <= now, own = a.fromRole === "admin";
+      return `<li class="item"><div class="grow"><b>${esc(a.title)}</b><small>${esc(audLabel(a))} · ${own ? "Admin" : esc(a.fromName || "Teacher") + " (teacher)"}</small>
+        <small style="color:var(--text);white-space:pre-wrap">${esc(a.text)}</small><small>${live ? "Published" : "Scheduled for"} ${esc(annTimeText(ts(a.publishAt), "en"))}</small></div>
+        <span class="pill s-${live ? "active" : "pending"}">${live ? "live" : "scheduled"}</span>
+        <div class="acts">${own ? `<button class="btn small ghost" data-act="editAnn" data-id="${a.id}">Edit</button>` : ""}<button class="btn small danger" data-act="delAnn" data-id="${a.id}">Delete</button></div></li>`;
+    }).join("");
   } else if (v === "reports") {
     empty = "No reports yet. Reports from students and teachers appear here.";
     html = reports.slice().sort((a, b) => ts(b.createdAt) - ts(a.createdAt)).filter(r => hit({ name: r.fromName + " " + (r.subject || ""), email: r.text, loginId: r.loginId })).map(r => `<li class="item"><div class="grow">
@@ -157,6 +168,8 @@ $("#list").addEventListener("click", async e => {
     if (act === "reply") openReply(reports.find(x => x.id === id));
     if (act === "toggleReport") { const r = reports.find(x => x.id === id); await db.collection("reports").doc(id).update({ status: r.status === "resolved" ? "new" : "resolved" }); }
     if (act === "delReport" && confirm("Delete this report?")) await db.collection("reports").doc(id).delete();
+    if (act === "editAnn") openAnnouncement(anns.find(x => x.id === id));
+    if (act === "delAnn" && confirm("Delete this announcement?")) await db.collection("announcements").doc(id).delete();
     if (act === "essay") openEssay(en);
     if (act === "editGuides") openGuides();
     if (act === "publish") await publishReview(reviews.find(x => x.id === id));
@@ -185,7 +198,7 @@ function openCreate({ role = "student", name = "", email = "", enrolId: eid = nu
   F("loginId").value = suggestId(role); F("password").value = genPw();
   $("#cErr").hidden = true; cScrim.hidden = false; F("name").focus();
 }
-$("#addBtn").onclick = () => { const v = view(); if (v === "classes") openClass(); else if (v === "site") openProgram(); else openCreate({ role: v === "teachers" ? "teacher" : "student" }); };
+$("#addBtn").onclick = () => { const v = view(); if (v === "classes") openClass(); else if (v === "announcements") openAnnouncement(); else if (v === "site") openProgram(); else openCreate({ role: v === "teachers" ? "teacher" : "student" }); };
 F("role").onchange = () => { if (!idTouched) F("loginId").value = suggestId(F("role").value); };
 F("loginId").oninput = () => idTouched = true;
 $("#genPw").onclick = () => F("password").value = genPw();
@@ -286,7 +299,7 @@ function openClass(c = {}) {
   const updDur = () => {   // live preview of the end date and number of sessions
     const f = $("#mForm").elements, sr = readSessions(f, SESS_L);
     const i = courseInfo({ startDate: f.startDate.value, durationMonths: f.durationMonths.value, sessions: sr.list || [] });
-    $("#durNote").textContent = i ? `Ends ${fmtDate(i.end, "en")} · ${i.total} sessions in total` : "";
+    $("#durNote").textContent = !i ? "" : sr.error ? sr.error : `Ends ${fmtDate(i.end, "en")} · ${i.total} sessions in total`;
   };
   $("#mForm").addEventListener("input", updDur); $("#mForm").addEventListener("change", updDur); updDur();
   $("#mSave").onclick = async () => {
@@ -486,4 +499,41 @@ async function publishReview(r) {
   b.set(db.collection("testimonials").doc(r.id), { name: name.trim() || "A CLC student", programId: r.programId || "", rating: r.rating, text: r.text, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
   b.update(db.collection("reviews").doc(r.id), { status: "approved" });
   await b.commit(); toast("Published on the website");
+}
+
+/* ---------- Announcements (write now or schedule; everyone, students, teachers, or one class) ---------- */
+const className = id => { const c = classes.find(x => x.id === id); return c ? progName(c.programId) + (c.label ? " · " + c.label : "") : "(deleted class)"; };
+const audLabel = a => a.audience === "all" ? "Everyone (students & teachers)" : a.audience === "students" ? "All students" : a.audience === "teachers" ? "All teachers" : "Class: " + className(a.classId);
+const toLocalInput = ms => new Date(ms - new Date(ms).getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+function openAnnouncement(a = {}) {
+  const scheduled = !!a.id && ts(a.publishAt) > Date.now();
+  sheet(a.id ? "Edit announcement" : "New announcement", `
+    <form id="mForm" class="group form" style="margin-top:14px" novalidate>
+      <label><span>Title</span><input name="title" maxlength="120" value="${esc(a.title)}"></label>
+      <label><span>Message</span><textarea name="text" rows="5" maxlength="2000">${esc(a.text)}</textarea></label>
+      <label><span>Send to</span><select name="audience">${opts([["all", "Everyone (students & teachers)"], ["students", "All students"], ["teachers", "All teachers"], ["class", "One class (its students and teacher)"]], a.audience || "all")}</select></label>
+      <label id="clsRow" hidden><span>Class</span><select name="classId">${opts(classes.map(c => [c.id, className(c.id)]), a.classId)}</select></label>
+      <label><span>Publish</span><select name="when">${opts([["now", "Now"], ["later", "Schedule for later"]], scheduled ? "later" : "now")}</select></label>
+      <label id="atRow" hidden><span>Date &amp; time</span><input type="datetime-local" name="at" value="${scheduled ? toLocalInput(ts(a.publishAt)) : ""}"></label>
+    </form><p class="note center">Scheduled times use this device’s time zone. People see the announcement from that moment on.</p>
+    <button class="btn wide" id="mSave">${a.id ? "Save" : "Publish"}</button>`);
+  const f = $("#mForm").elements, sync = () => { $("#clsRow").hidden = f.audience.value !== "class"; $("#atRow").hidden = f.when.value !== "later"; };
+  $("#mForm").addEventListener("change", sync); sync();
+  $("#mSave").onclick = async () => {
+    const title = f.title.value.trim(), text = f.text.value.trim(), audience = f.audience.value, SV = firebase.firestore.FieldValue.serverTimestamp();
+    if (!title || !text) return mErr("Please write a title and a message.");
+    if (audience === "class" && !f.classId.value) return mErr("Choose a class (add a class first if the list is empty).");
+    let publishAt;
+    if (f.when.value === "later") {
+      const ms = new Date(f.at.value).getTime();
+      if (!f.at.value || isNaN(ms)) return mErr("Choose the date and time.");
+      publishAt = firebase.firestore.Timestamp.fromMillis(ms);
+    } else publishAt = a.id && !scheduled ? a.publishAt : SV;   // editing a live one keeps its original time
+    const btn = $("#mSave"); btn.disabled = true;
+    try {
+      if (a.id) await db.collection("announcements").doc(a.id).update({ title, text, audience, publishAt, classId: audience === "class" ? f.classId.value : firebase.firestore.FieldValue.delete(), updatedAt: SV });
+      else await db.collection("announcements").add({ title, text, audience, publishAt, ...(audience === "class" ? { classId: f.classId.value } : {}), fromUid: auth.currentUser.uid, fromName: "CLC Admin", fromRole: "admin", createdAt: SV });
+      closeModal(); toast(f.when.value === "later" ? "Announcement scheduled" : "Announcement published");
+    } catch (e) { console.error(e); mErr("Could not save. Try again."); btn.disabled = false; }
+  };
 }
