@@ -7,6 +7,12 @@
 <title>Circle Learning Centre</title>
 <meta name="description" content="Circle Learning Centre – English and life-skills learning for youths in Myanmar.">
 <meta name="theme-color" content="#F2F2F7">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Circle Learning Centre">
+<meta property="og:title" content="Circle Learning Centre">
+<meta property="og:description" content="English and life-skills learning for youths in Myanmar.">
+<meta name="twitter:card" content="summary">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"EducationalOrganization","name":"Circle Learning Centre","foundingDate":"2021","areaServed":"MM","sameAs":["https://www.facebook.com/CLCburmese","https://www.tiktok.com/@circle.edu.mm"]}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Myanmar:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -77,6 +83,7 @@
     <h2 data-i18n="enrol_h"></h2>
     <p class="body" data-i18n="enrol_p"></p>
     <form id="enrolForm" class="group form" novalidate>
+      <input name="website" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
       <label><span data-i18n="f_name"></span><input name="name" required autocomplete="name"></label>
       <label><span data-i18n="f_contact"></span><input name="contact" type="email" inputmode="email" required autocomplete="email"></label>
       <label><span data-i18n="f_course"></span><select name="course" id="courseSelect"></select></label>
@@ -87,6 +94,7 @@
     <p class="note warn" id="scholNote" hidden data-i18n="schol_warn"></p>
     <p class="note" id="essayCount" hidden></p>
     <p class="note" data-i18n="f_email_note"></p>
+    <p class="note" data-i18n="f_privacy"></p>
     <button class="btn wide" type="submit" form="enrolForm" data-i18n="f_submit"></button>
     <p class="ok" id="enrolOk" hidden data-i18n="f_ok"></p>
   </section>
@@ -125,7 +133,7 @@
   </div>
 </div>
 
-<div class="toast" id="toast" hidden></div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
