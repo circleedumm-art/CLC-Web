@@ -45,7 +45,7 @@ const T = {
     schol_warn:"Scholarships are limited. Please apply only if you really need support and have a reasonable reason.",
     f_essay:"Describe your situation and why you need a scholarship (up to 250 words, or up to 10 sentences if you write in Burmese)",
     essay_words:"words", essay_sentences:"sentences", essay_short:"Please explain a little more (at least 30 words, or 3 sentences in Burmese).", essay_long:"Your answer is too long (250 words, or 10 sentences in Burmese, at most).",
-    rev_h:"What our students say", rev_p:"Reviews from students who completed a CLC class.", rev_none:"Reviews from our students will appear here soon.",
+    rev_h:"What our students say", rev_p:"Reviews from students who completed a CLC class.", rev_none:"Reviews from our students will appear here soon.", rev_more:"Read more",
     r_student:"Student", r_teacher:"Teacher", r_admin:"Admin",
     l_id:"ID", l_pw:"Password", l_signin:"Sign in", l_google:"Continue with Google",
     l_soon:"Your ID and password are given by the CLC admin.", close:"Close", logout:"Log out",
@@ -73,7 +73,7 @@ const T = {
     schol_warn:"ပညာသင်ဆုများမှာ အကန့်အသတ်ရှိပါသည်။ အမှန်တကယ် အကူအညီလိုအပ်ပြီး သင့်လျော်သော အကြောင်းပြချက်ရှိမှသာ လျှောက်ထားပါ။",
     f_essay:"ပညာသင်ဆု လိုအပ်သည့် သင့်အခြေအနေကို ဖော်ပြပါ (အင်္ဂလိပ်လို စကားလုံး ၂၅၀ အထိ၊ မြန်မာလို ဝါကျ ၁၀ ကြောင်းအထိ)",
     essay_words:"စကားလုံး", essay_sentences:"ဝါကျ", essay_short:"ပိုမိုအသေးစိတ် ရေးသားပါ (အနည်းဆုံး စကားလုံး ၃၀ သို့မဟုတ် မြန်မာလို ဝါကျ ၃ ကြောင်း)။", essay_long:"ရေးသားချက် ရှည်လွန်းပါသည် (စကားလုံး ၂၅၀ သို့မဟုတ် မြန်မာလို ဝါကျ ၁၀ ကြောင်းအထိ)။",
-    rev_h:"ကျောင်းသားများ၏ အမြင်", rev_p:"CLC အတန်းများ ပြီးဆုံးခဲ့သော ကျောင်းသားများ၏ အမြင်များ။", rev_none:"ကျောင်းသားများ၏ အမြင်များကို ဤနေရာတွင် မကြာမီ ပြသပါမည်။",
+    rev_h:"ကျောင်းသားများ၏ အမြင်", rev_p:"CLC အတန်းများ ပြီးဆုံးခဲ့သော ကျောင်းသားများ၏ အမြင်များ။", rev_none:"ကျောင်းသားများ၏ အမြင်များကို ဤနေရာတွင် မကြာမီ ပြသပါမည်။", rev_more:"ဆက်ဖတ်ရန်",
     r_student:"ကျောင်းသား", r_teacher:"ဆရာ", r_admin:"အက်ဒမင်",
     l_id:"ID", l_pw:"စကားဝှက်", l_signin:"ဝင်မည်", l_google:"Google ဖြင့် ဆက်လုပ်မည်",
     l_soon:"ID နှင့် စကားဝှက်ကို CLC အက်ဒမင်က ပေးပါမည်။", close:"ပိတ်မည်", logout:"ထွက်မည်",
@@ -112,10 +112,12 @@ function renderLang() {
   $("#guide").hidden = !gl.length;
   $("#guideList").innerHTML = gl.map(([k, tk]) => `<li class="guide"><b>${T[lang][tk]}</b>${videoBlock(DATA.guides[k], "▶ " + T[lang].watch)}</li>`).join("");
 
-  $("#quoteList").innerHTML = DATA.quotes.length ? DATA.quotes.map(q => {
+  $("#quoteList").innerHTML = DATA.quotes.length ? DATA.quotes.map((q, i) => {
     const p = DATA.programs.find(x => x.id === q.programId);
-    return `<figure class="quote"><div class="stars" aria-label="${esc(q.rating)}/5">${stars(Number(q.rating) || 0)}</div><blockquote>${esc(q.text)}</blockquote><figcaption>${esc(q.name)}${p ? " · " + esc(p[lang]) : ""}</figcaption></figure>`; }).join("")
+    return `<figure class="quote"><div class="stars" aria-label="${esc(q.rating)}/5">${stars(Number(q.rating) || 0)}</div><blockquote>${esc(q.text)}</blockquote><button class="more" type="button" data-q="${i}" hidden>${T[lang].rev_more}</button><figcaption>${esc(q.name)}${p ? " · " + esc(p[lang]) : ""}</figcaption></figure>`; }).join("")
     : `<p class="note">${T[lang].rev_none}</p>`;
+  $(".qnav").hidden = !DATA.quotes.length;
+  markClamped();
 
   const ss = $("#scholSel"), keepS = ss.value || "none";
   ss.innerHTML = [["none", "schol_none"], ["half", "schol_half"], ["full", "schol_full"]].map(([v, k]) => `<option value="${v}">${T[lang][k]}</option>`).join(""); ss.value = keepS;
@@ -180,6 +182,26 @@ $("#enrolForm").addEventListener("submit", async e => {
 /* ---------- Login sheet ---------- */
 const scrim = $("#scrim");
 const openSheet = () => { scrim.hidden = false; $("#signIn").focus(); };
+/* ---------- Reviews: equal-size cards that scroll sideways; "Read more" shows the whole review ---------- */
+// Show "Read more" only on cards whose text is cut off.
+function markClamped() {
+  $$("#quoteList .quote").forEach(f => { const b = f.querySelector("blockquote"), m = f.querySelector(".more"); m.hidden = true; m.hidden = !(b.scrollHeight > b.clientHeight + 1); });
+}
+addEventListener("resize", markClamped);
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(markClamped);
+const qStep = () => { const c = $("#quoteList .quote"); return c ? c.offsetWidth + 14 : 300; };
+$("#qPrev").onclick = () => $("#quoteList").scrollBy({ left: -qStep(), behavior: "smooth" });
+$("#qNext").onclick = () => $("#quoteList").scrollBy({ left: qStep(), behavior: "smooth" });
+const revScrim = $("#revScrim"), closeReview = () => { revScrim.hidden = true; };
+$("#quoteList").addEventListener("click", e => {
+  const b = e.target.closest(".more"), q = b && DATA.quotes[Number(b.dataset.q)]; if (!q) return;
+  const p = DATA.programs.find(x => x.id === q.programId);
+  $("#revBody").innerHTML = `<div class="stars" aria-label="${esc(q.rating)}/5">${stars(Number(q.rating) || 0)}</div><blockquote>${esc(q.text)}</blockquote><p class="note">${esc(q.name)}${p ? " · " + esc(p[lang]) : ""}</p>`;
+  revScrim.hidden = false;
+});
+revScrim.addEventListener("click", e => { if (e.target === revScrim || e.target.closest("[data-close-rev]")) closeReview(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !revScrim.hidden) closeReview(); });
+
 const closeSheet = () => { scrim.hidden = true; $("#loginBtn").focus(); };
 $("#loginBtn").onclick = openSheet; $("#closeSheet").onclick = closeSheet;
 scrim.addEventListener("click", e => { if (e.target === scrim) closeSheet(); });
