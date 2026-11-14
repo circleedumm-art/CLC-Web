@@ -23,7 +23,7 @@
 
 <header class="bar">
   <a class="brand" href="#top" aria-label="Circle Learning Centre">
-    <img class="logo-img" src="logo.png" alt="" width="32" height="32" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'logo'}))"><span class="brand-name">Circle Learning Centre</span>
+    <img class="logo-img" src="logo.png" alt="" width="32" height="32" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'logo'}))"><span class="brand-name">CLC</span>
   </a>
   <nav class="tabs" aria-label="Main">
     <a href="#about" data-i18n="nav_about"></a>
@@ -102,7 +102,8 @@
   <section id="reviews" class="wrap">
     <h2 data-i18n="rev_h"></h2>
     <p class="body" data-i18n="rev_p"></p>
-    <div class="quotes" id="quoteList"></div>
+    <div class="qnav"><button type="button" id="qPrev" aria-label="Previous reviews">‹</button><button type="button" id="qNext" aria-label="Next reviews">›</button></div>
+    <div class="quotes" id="quoteList" tabindex="0" role="region" aria-label="Reviews"></div>
   </section>
 </main>
 
@@ -130,6 +131,15 @@
     <p class="note center err" id="loginErr" hidden></p>
     <p class="note center" data-i18n="l_soon"></p>
     <button class="link" id="closeSheet" data-i18n="close"></button>
+  </div>
+</div>
+
+<!-- Full review -->
+<div class="scrim" id="revScrim" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-label="Review">
+    <div class="grab"></div>
+    <div id="revBody" class="rev-full"></div>
+    <button class="link" data-close-rev data-i18n="close"></button>
   </div>
 </div>
 
