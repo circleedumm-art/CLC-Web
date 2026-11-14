@@ -264,11 +264,20 @@ h3{font-size:20px;text-align:center}
 
 /* ---------- How-to videos, testimonials, scholarship ---------- */
 .group>li.guide{flex-direction:column;align-items:stretch;gap:8px}.guide b{font-weight:600}
-.quotes{display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}
-.quote{background:var(--card);border:.5px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:18px 18px 14px;margin:0}
+.quotes{display:flex;gap:14px;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;padding:2px 2px 14px;scrollbar-width:thin}
+.quotes:focus-visible{outline:2px solid var(--link);outline-offset:2px;border-radius:var(--r)}
+.quote{flex:0 0 min(300px,82%);height:260px;box-sizing:border-box;display:flex;flex-direction:column;scroll-snap-align:start;background:var(--card);border:.5px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:18px 18px 14px;margin:0}
 .quote .stars,.stars{color:#C9A24B;letter-spacing:2px;font-size:16px}
-.quote blockquote{margin:8px 0 12px;line-height:1.6;overflow-wrap:anywhere}
-.quote figcaption{color:var(--sub);font-size:14px}
+.quote blockquote{flex:1;min-height:0;margin:8px 0 8px;line-height:1.7;overflow:hidden;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:4;line-clamp:4}
+.quote .more{align-self:flex-start;background:none;border:0;padding:0 0 8px;font:inherit;font-size:14px;font-weight:600;color:var(--link);cursor:pointer}
+.quote .more[hidden]{display:none}
+.quote figcaption{color:var(--sub);font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qnav{display:flex;gap:8px;justify-content:flex-end;margin:0 0 8px}
+.qnav[hidden]{display:none}
+.qnav button{width:36px;height:36px;border-radius:50%;border:.5px solid var(--line);background:var(--card);color:var(--text);font-size:20px;line-height:1;cursor:pointer}
+.qnav button:hover{background:var(--fill)}
+@media(hover:none){.qnav{display:none}}
+.rev-full{margin-top:14px}.rev-full blockquote{margin:10px 0 12px;line-height:1.7;white-space:pre-wrap;overflow-wrap:anywhere}
 .form label.essay{flex-wrap:wrap}.form label.essay span{width:100%}.form label.essay textarea{flex:1 1 100%;text-align:left;min-height:150px}
 .note.warn{color:var(--warn)}.note.bad{color:var(--bad)}
 .starpick{display:flex;gap:6px;justify-content:center;margin:12px 0}
