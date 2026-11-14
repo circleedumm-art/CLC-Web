@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CLC – Offline</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#F2F2F7">
+<style>
+  body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;box-sizing:border-box;font-family:Inter,system-ui,"Noto Sans Myanmar",sans-serif;background:#F2F2F7;color:#0B1B3A;text-align:center}
+  main{max-width:380px}
+  .ring{width:64px;height:64px;margin:0 auto 18px;border-radius:50%;border:8px solid #1F3F82;box-sizing:border-box}
+  h1{font-size:22px;margin:0 0 8px}p{margin:0 0 18px;line-height:1.6;color:#55627D}
+  button{font:inherit;font-weight:600;border:0;border-radius:999px;padding:12px 26px;background:#1F3F82;color:#fff;cursor:pointer}
+  @media(prefers-color-scheme:dark){body{background:#000;color:#F2F5FA}p{color:#9AA7C2}.ring{border-color:#8FB0F5}button{background:#8FB0F5;color:#001533}}
+</style>
+</head>
+<body>
+<main>
+  <div class="ring" aria-hidden="true"></div>
+  <h1>You are offline</h1>
+  <p>Please check your internet connection, then try again.</p>
+  <p lang="my">အင်တာနက် ချိတ်ဆက်မှု မရှိပါ။ ချိတ်ဆက်မှု စစ်ဆေးပြီး ထပ်မံကြိုးစားပါ။</p>
+  <button onclick="location.reload()">Try again / ထပ်ကြိုးစားမည်</button>
+</main>
+</body>
+</html>
