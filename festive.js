@@ -46,13 +46,13 @@
   /* ---------------- 2. Greetings and colours ---------------- */
   const nextYear = now.getMonth() >= 6 ? Y + 1 : Y;   // 1–2 January shows the current year; December shows the coming one
   const LOOK = {
-    christmas:    { en: "Merry Christmas!", my: "ခရစ္စမတ်ပွဲတော် မင်္ဂလာရှိပါစေ", bg: "linear-gradient(135deg,#C62E3E,#1F7A4D)" },
-    newyear:      { en: "Happy New Year " + nextYear + "!", my: "နှစ်သစ်ကူး မင်္ဂလာရှိပါစေ", bg: "linear-gradient(135deg,#3A2D8F,#C9962B)" },
-    independence: { en: "Happy Independence Day", my: "လွတ်လပ်ရေးနေ့ မင်္ဂလာရှိပါစေ", bg: "linear-gradient(135deg,#B7791F,#2F6B4F)" },
-    thingyan:     { en: "Happy Thingyan & Myanmar New Year!", my: "သင်္ကြန်ပွဲတော် မင်္ဂလာရှိပါစေ", bg: "linear-gradient(135deg,#E8A700,#E2701F)" },
-    mayday:       { en: "Happy May Day", my: "မေဒေး (အလုပ်သမားနေ့) မင်္ဂလာရှိပါစေ", bg: "linear-gradient(135deg,#B3261E,#D69A1F)" },
-    teachers:     { en: "Happy Teachers' Day", my: "ကမ္ဘာ့ဆရာများနေ့ မင်္ဂလာရှိပါစေ", bg: "linear-gradient(135deg,#1D5FA8,#2E9F8F)" },
-    thadingyut:   { en: "Happy Thadingyut Festival of Lights", my: "သီတင်းကျွတ်မီးထွန်းပွဲတော် မင်္ဂလာရှိပါစေ", bg: "linear-gradient(135deg,#7A2E8F,#E2701F)" }
+    christmas:    { en: "Merry Christmas!", my: "ပျော်ရွှင်စရာ ခရစ္စမတ်ပွဲတော်လေး ဖြစ်ပါစေ", bg: "linear-gradient(135deg,#C62E3E,#1F7A4D)" },
+    newyear:      { en: "Happy New Year " + nextYear + "!", my: "ပျော်ရွှင်စရာ နှစ်သစ်လေး ဖြစ်ပါစေ", bg: "linear-gradient(135deg,#3A2D8F,#C9962B)" },
+    independence: { en: "Happy Independence Day", my: "မြန်မာ့လွတ်လပ်ရေးနေ့အား ကြိုဆိုဂုဏ်ပြုပါသည်", bg: "linear-gradient(135deg,#B7791F,#2F6B4F)" },
+    thingyan:     { en: "Happy Thingyan & Myanmar New Year!", my: "ပျော်ရွှင်စရာ မဟာသင်္ကြန်နှင့် မင်္ဂလာရှိသောနှစ်သစ်လေးဖြစ်ပါစေ", bg: "linear-gradient(135deg,#E8A700,#E2701F)" },
+    mayday:       { en: "Happy May Day", my: "မေဒေး (အလုပ်သမားနေ့) ကို ကြိုဆိုဂုဏ်ပြုပါသည်", bg: "linear-gradient(135deg,#B3261E,#D69A1F)" },
+    teachers:     { en: "Happy Teachers' Day", my: "ကမ္ဘာ့ဆရာများနေ့တွင် ဆရာ၊ဆရာမများအား ဂုဏ်ပြုပါသည်", bg: "linear-gradient(135deg,#1D5FA8,#2E9F8F)" },
+    thadingyut:   { en: "Happy Thadingyut Festival of Lights", my: "မင်္ဂလာရှိသော သီတင်းကျွတ်အခါသမယလေး ဖြစ်ပါစေ", bg: "linear-gradient(135deg,#7A2E8F,#E2701F)" }
   };
   const look = LOOK[id];
   if (!look) return;
