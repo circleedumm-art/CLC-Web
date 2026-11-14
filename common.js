@@ -66,6 +66,21 @@ function threadSheet(modal, { title, list, me, t, onSend, onClose }) {
   };
 }
 
+/* ---------- Logo: use logo-dark.png in the dark theme ----------
+   Put a light-coloured version of the logo next to logo.png and name it logo-dark.png.
+   If that file is missing, the normal logo stays. Works on every page, whichever script switches the theme. */
+(function () {
+  let darkOk = false;
+  const apply = () => {
+    const want = darkOk && document.documentElement.dataset.theme === "dark" ? "logo-dark.png" : "logo.png";
+    document.querySelectorAll("img.logo-img").forEach(img => { if (img.getAttribute("src") !== want) img.setAttribute("src", want); });
+  };
+  const probe = new Image();
+  probe.onload = () => { darkOk = true; apply(); };
+  probe.src = "logo-dark.png";
+  new MutationObserver(apply).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+})();
+
 /* ---------- Announcements ----------
    audience: "all" | "students" | "teachers" | "class" (with classId). publishAt lets the admin schedule one for later:
    people only see an announcement once publishAt has passed. */
