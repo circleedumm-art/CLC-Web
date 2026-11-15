@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://circleedumm-art.github.io/sitemap.xml
