@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Circle Learning Centre – Page moved</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#F2F2F7">
+<link rel="icon" type="image/png" href="/logo.png">
+<style>
+  body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;box-sizing:border-box;font-family:Inter,system-ui,"Noto Sans Myanmar",sans-serif;background:#F2F2F7;color:#0B1B3A;text-align:center}
+  main{max-width:400px}
+  img{width:72px;height:72px;margin-bottom:14px}
+  h1{font-size:22px;margin:0 0 8px}p{margin:0 0 16px;line-height:1.6;color:#55627D}
+  a.btn{display:inline-block;font-weight:600;border-radius:999px;padding:12px 26px;background:#243155;color:#fff;text-decoration:none}
+  @media(prefers-color-scheme:dark){body{background:#000;color:#F2F5FA}p{color:#9AA7C2}a.btn{background:#8FB0F5;color:#001533}}
+</style>
+</head>
+<body>
+<main>
+  <img src="/logo.png" alt="">
+  <h1>Taking you to our website…</h1>
+  <p>Circle Learning Centre has a new web address. If you are not redirected, tap the button.</p>
+  <p lang="my">Circle Learning Centre ၏ ဝက်ဘ်လိပ်စာ အသစ် ဖြစ်ပါသည်။ အလိုအလျောက် မရောက်ပါက ခလုတ်ကို နှိပ်ပါ။</p>
+  <a class="btn" href="/">Go to homepage / ပင်မစာမျက်နှာ</a>
+</main>
+<script>
+  // Old links looked like /CLC-Web/ or /CLC-Web/student.html. Send them to the same page at the new address.
+  (function () {
+    var p = location.pathname;
+    if (/^\/CLC-Web(\/|$)/i.test(p)) {
+      var target = p.replace(/^\/CLC-Web/i, "") || "/";
+      location.replace(target + location.search + location.hash);
+    } else if (p === "/index" || p === "/index.htm") {
+      location.replace("/");
+    }
+  })();
+</script>
+</body>
+</html>
